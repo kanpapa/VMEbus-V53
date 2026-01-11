@@ -128,9 +128,8 @@ start:
     mov al, 00000011b
     out dx, al
 
-
     ; ---------------------------------------------
-    ; 7. 受信したデータをそのまま送信するループ
+    ; 7. メモリ書き込み後に読み出してメモリテストをするループ
     ; ---------------------------------------------
     ; --- Stackless Main Loop ---
     ; CALL も PUSH も使わず、ひたすらベタ書きで回す
@@ -142,7 +141,7 @@ start:
 main_loop:
     ; --- 書き込み ---
     ; アドレス [DS:SI] にテスト値を書き込む
-    mov byte [si], 0x55
+    mov byte [si], 0x55     ; 書き込む値(01010101)
 
     ; --- 読み出し ---
     ; アドレス [DS:SI] から値を読み出す
@@ -152,12 +151,35 @@ main_loop:
     cmp al, 0x55
     jne error_found         ; 一致しない場合はエラー処理へ
 
+    ; 同様に0xAA(10101010)でも確認
+    mov byte [si], 0xAA
+    mov al, byte [si]
+    cmp al, 0xAA
+    jne error_found
+
+    ; メモリをクリアして次へ
+    mov byte [si], 0x00
+
 next_addr:
     ; --- アドレス更新 ---
-    INC SI                  ; アドレスをインクリメント
-    CMP SI, 0000H           ; 0000Hに戻ったかチェック (FFFFHの次は0000H)
-    JNZ main_loop           ; 0でなければループ継続
+    inc si                 ; アドレスをインクリメント
+    cmp si, 0000H           ; 0000Hに戻ったかチェック (FFFFHの次は0000H)
+    je  segment_update      ; SIが0になったら次のセグメントへ
+    jmp main_loop           ; 0でなければループ継続
 
+segment_update:
+    ; --- セグメント更新 ---
+    mov ax, ds
+    add ax, 1000h
+    mov ds, ax
+
+    ; --- 終了判定（E0000-FFFFFはROMエリアのため省く）---
+    cmp ax, 0e000h
+    je all_done
+
+    jmp main_loop
+
+all_done:
     ; --- 終了処理 (全チェック完了) ---
     ; シリアル送信部
     mov dx, SCU_SST
@@ -167,7 +189,7 @@ next_addr:
     jz .wait_tx3
     
     mov dx, SCU_DATA
-    mov al, '#'
+    mov al, '#'         ; 終了したことを示す表示
     out dx, al
 
     ;無限ループで停止
@@ -178,37 +200,40 @@ next_addr:
 ; 注意: CALLは使えないため、処理後は NEXT_ADDR へジャンプして戻る
 ; -------------------------------------------------------------
 error_found:
-    ; 現在のSI (エラーアドレス) を保持して表示処理を行う
-    ; ループ用にBPを使用 (スタック操作ではない汎用レジスタとして利用)
-    ; 16bitアドレスなので4桁のHEXを表示する
+    ; 状態フラグ(BX)を使って、セグメント表示とオフセット表示で
+    ; 同じ処理(PRINT_HEX)を使い回す。
+    ; レジスタ競合回避のため、DIをフラグとして使用
+    ; DI = 1 : セグメント表示中
+    ; DI = 0 : オフセット表示中
 
-    MOV CX, 4               ; 4桁分ループ (4 nibbles)
-    ; データ操作用には BP を使用 (DXを温存するため)
-    ; スタックを使わないのでBPは汎用レジスタとして利用可能
-    MOV BP, SI              ; エラーアドレスをBPにコピー
+    mov di, 1   ; 最初はセグメント(DS)を表示
+    mov bp, ds  ; 表示用データにDSをセット
 
-PRINT_HEX_LOOP:
+print_hex_start:
+    mov cx, 4               ; 4桁分ループ (4 nibbles)
+
+print_hex_loop:
     ; 上位4ビットを取り出すために左ローテート
-    ROL BP, 1
-    ROL BP, 1
-    ROL BP, 1
-    ROL BP, 1
+    rol bp, 1
+    rol bp, 1
+    rol bp, 1
+    rol bp, 1
     
-    MOV AX, BP              ; AXにコピー
-    AND AX, 000FH           ; 下位4ビットのみ抽出 (0-F)
+    mov ax, bp              ; AXにコピー
+    and ax, 000fh           ; 下位4ビットのみ抽出 (0-F)
 
     ; HEX ASCII変換
-    CMP AL, 0AH
-    JB  IS_DIGIT
-    ADD AL, 07H             ; 'A'-'F' の場合の調整
-IS_DIGIT:
-    ADD AL, 30H             ; '0' のASCIIコードを足す
+    cmp al, 0ah
+    jb  is_digit
+    add al, 07h             ; 'A'-'F' の場合の調整
+is_digit:
+    add al, 30h             ; '0' のASCIIコードを足す
 
     ; --- 文字送信 (SCU) ---
     ; レジスタ退避ができないため、他のレジスタを壊さないよう注意
     ; ここでは AH を作業用、AL を送信データとして使用
     
-    MOV BL, AL              ; 送信文字をBLに一時退避
+    mov bl, al              ; 送信文字をBLに一時退避
 
     ; シリアル送信部
     mov dx, SCU_SST
@@ -221,9 +246,10 @@ IS_DIGIT:
     mov al, bl
     out dx, al
 
-    LOOP PRINT_HEX_LOOP     ; CXを減らしてループ
+    loop print_hex_loop     ; CXを減らしてループ
 
-    ; アドレスの後にスペースなどを送る
+    ; --- アドレス表示完了後の処理 ---
+    ; 読みやすくするためアドレスの後にスペースを送る
     ; シリアル送信部
     mov dx, SCU_SST
 .wait_tx2:
@@ -235,8 +261,19 @@ IS_DIGIT:
     mov al, ' '
     out dx, al
 
+    ; --- フェーズ切り替え判定 ---
+    cmp di, 0               ; 今回の表示はオフセット表示かを確認する
+    je error_done           ; BX=0ならオフセット表示完了なので戻る
+
+    ; 現在のSI (エラーアドレス) を保持して表示処理を行う
+    ; 16bitアドレスなので4桁のHEXを表示する
+    mov di, 0               ; フラグを「オフセット表示」に変更
+    mov bp, si              ; 表示する値をSI(オフセット)に変更
+    jmp print_hex_start     ; 表示ルーチンへ戻る
+
+error_done:
     ; --- テスト継続 ---
-    JMP next_addr
+    jmp next_addr
 
 ; -----------------------------------------------------------------
 ; Padding (空白埋め)
