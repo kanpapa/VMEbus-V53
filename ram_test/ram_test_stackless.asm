@@ -149,13 +149,13 @@ main_loop:
 
     ; --- 比較 ---
     cmp al, 0x55
-    jne error_found         ; 一致しない場合はエラー処理へ
+    jne error_found_55         ; 一致しない場合はエラー処理へ
 
     ; 同様に0xAA(10101010)でも確認
     mov byte [si], 0xAA
     mov al, byte [si]
     cmp al, 0xAA
-    jne error_found
+    jne error_found_AA
 
     ; メモリをクリアして次へ
     mov byte [si], 0x00
@@ -194,24 +194,60 @@ all_done:
 
     ;無限ループで停止
     jmp $
+; -------------------------------------------------------------
+; エラー分岐用フック
+; -------------------------------------------------------------
+error_found_55:
+    ; ALには読み出した「間違った値」が入っている
+    mov bh, al          ; BHに読み出し値を保存 (BLは文字出力で使うのでBHを使う)
+    jmp error_found_main
+
+error_found_AA:
+    mov bh, al          ; BHに読み出し値を保存
+    jmp error_found_main
 
 ; -------------------------------------------------------------
-; エラー処理ルーチン: アドレス(SI)を16進数で出力
-; 注意: CALLは使えないため、処理後は NEXT_ADDR へジャンプして戻る
+; エラー表示ルーチン
+; 出力形式: SSSS OOOO VV (Segment Offset Value)
 ; -------------------------------------------------------------
-error_found:
+error_found_main:
     ; 状態フラグ(BX)を使って、セグメント表示とオフセット表示で
     ; 同じ処理(PRINT_HEX)を使い回す。
     ; レジスタ競合回避のため、DIをフラグとして使用
-    ; DI = 1 : セグメント表示中
-    ; DI = 0 : オフセット表示中
+    ; DI = 2 : セグメント表示 (4桁)
+    ; DI = 1 : オフセット表示 (4桁)
+    ; DI = 0 : 読み出し値表示 (2桁)
 
-    mov di, 1   ; 最初はセグメント(DS)を表示
-    mov bp, ds  ; 表示用データにDSをセット
+    mov di, 2   
+
+setup_print_phase:
+    ; フェーズに応じた準備
+    cmp di, 2       ; セグメント(DS)を表示
+    je phase_segment
+    cmp di, 1
+    je phase_offset
+    jmp phase_value
+
+phase_segment:
+    mov bp, ds              ; 表示データ: DS
+    mov cx, 4               ; 4桁分ループ (4 nibbles)
+    jmp print_hex_start
+
+phase_offset:
+    mov bp, si          ; 表示データ: SI
+    mov cx, 4           ; 4桁
+    jmp print_hex_start
+
+phase_value:
+    ; BHに入っている8bit値を表示
+    mov al, bh
+    mov ah, 0           ; AX = 00xxh
+    mov bp, ax          ; 表示データ: AX
+    mov cx, 2           ; 8bitなので2桁でOK
+    jmp print_hex_start
 
 print_hex_start:
-    mov cx, 4               ; 4桁分ループ (4 nibbles)
-
+    ; --- 16進数出力ループ ---
 print_hex_loop:
     ; 上位4ビットを取り出すために左ローテート
     rol bp, 1
@@ -248,8 +284,8 @@ is_digit:
 
     loop print_hex_loop     ; CXを減らしてループ
 
-    ; --- アドレス表示完了後の処理 ---
-    ; 読みやすくするためアドレスの後にスペースを送る
+    ; --- 16進数表示完了後の処理 ---
+    ; 読みやすくするため16進数の後にスペースをいれる
     ; シリアル送信部
     mov dx, SCU_SST
 .wait_tx2:
@@ -261,15 +297,12 @@ is_digit:
     mov al, ' '
     out dx, al
 
-    ; --- フェーズ切り替え判定 ---
-    cmp di, 0               ; 今回の表示はオフセット表示かを確認する
-    je error_done           ; BX=0ならオフセット表示完了なので戻る
+    ; --- 次のフェーズへ遷移 ---
+    dec di              ; 2->1->0->(-1)
+    cmp di, -1
+    je error_done       ; 0(値)まで表示し終わったら完了
 
-    ; 現在のSI (エラーアドレス) を保持して表示処理を行う
-    ; 16bitアドレスなので4桁のHEXを表示する
-    mov di, 0               ; フラグを「オフセット表示」に変更
-    mov bp, si              ; 表示する値をSI(オフセット)に変更
-    jmp print_hex_start     ; 表示ルーチンへ戻る
+    jmp setup_print_phase
 
 error_done:
     ; --- テスト継続 ---
