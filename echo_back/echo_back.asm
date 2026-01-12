@@ -1,5 +1,5 @@
 ; =================================================================
-; DENSAN V53 VME board "RAM TEST" test ROM
+; DENSAN V53 VME board "Echo Back" test ROM
 ; =================================================================
 
 ; ▼▼▼ ROMサイズ設定 (ここを環境に合わせる) ▼▼▼
@@ -62,10 +62,10 @@ start:
     ; ※CSはJMP命令で設定されるので、DS/ES/SSを設定する
     ; ---------------------------------------------
     mov ax, 0x0000
-    mov ds, ax      ; DS (Data Segment) を0000Hに設定し、ここをテスト対象とする
+    mov ds, ax
     mov es, ax
-    ;mov ss, ax     ; スタックは使わない
-    ;mov sp, 0
+    mov ss, ax
+    mov sp, 0x1000
     
     ; ---------------------------------------------
     ; 2. システム・コントロール・レジスタ (SCTL) の設定
@@ -129,149 +129,36 @@ start:
     out dx, al
 
     ; ---------------------------------------------
-    ; 7. メモリ書き込み後に読み出してメモリテストをするループ
+    ; 7. 受信したデータをそのまま送信するループ
     ; ---------------------------------------------
-    ; --- Stackless Main Loop ---
-    ; CALL も PUSH も使わず、ひたすらベタ書きで回す
-
-    ; ループカウンタ兼アドレスポインタ (SIを使用)
-    ; SI = 0000H からスタート
-    mov si, 0x0000
-
 main_loop:
-    ; --- 書き込み ---
-    ; アドレス [DS:SI] にテスト値を書き込む
-    mov byte [si], 0x55     ; 書き込む値(01010101)
-
-    ; --- 読み出し ---
-    ; アドレス [DS:SI] から値を読み出す
-    mov al, byte [si]
-
-    ; --- 比較 ---
-    cmp al, 0x55
-    jne error_found_55         ; 一致しない場合はエラー処理へ
-
-    ; 同様に0xAA(10101010)でも確認
-    mov byte [si], 0xAA
-    mov al, byte [si]
-    cmp al, 0xAA
-    jne error_found_AA
-
-    ; メモリをクリアして次へ
-    mov byte [si], 0x00
-
-next_addr:
-    ; --- アドレス更新 ---
-    inc si                 ; アドレスをインクリメント
-    cmp si, 0000H           ; 0000Hに戻ったかチェック (FFFFHの次は0000H)
-    je  segment_update      ; SIが0になったら次のセグメントへ
-    jmp main_loop           ; 0でなければループ継続
-
-segment_update:
-    ; --- セグメント更新 ---
-    mov ax, ds
-    add ax, 1000h
-    mov ds, ax
-
-    ; --- 終了判定（E0000-FFFFFはROMエリアのため省く）---
-    cmp ax, 0e000h
-    je all_done
-
+    call com_recv
+    call com_send
     jmp main_loop
 
-all_done:
-    ; --- 終了処理 (全チェック完了) ---
-    ; シリアル送信部
+    ; ---------------------------------------------
+    ; シリアル受信ルーチン
+    ; シリアル受信データをalレジスタに格納。dxは破壊される。
+    ; ---------------------------------------------
+com_recv:
     mov dx, SCU_SST
-.wait_tx3:
+.wait_rx:
     in al, dx
-    test al, 00000001b  ; TX Ready?
-    jz .wait_tx3
-    
+    test al, 00000010b  ; RX Ready?
+    jz .wait_rx
+ 
     mov dx, SCU_DATA
-    mov al, '#'         ; 終了したことを示す表示
-    out dx, al
+    in al, dx
+    ret
 
-    ;無限ループで停止
-    jmp $
-; -------------------------------------------------------------
-; エラー分岐用フック
-; -------------------------------------------------------------
-error_found_55:
-    ; ALには読み出した「間違った値」が入っている
-    mov bh, al          ; BHに読み出し値を保存 (BLは文字出力で使うのでBHを使う)
-    jmp error_found_main
+    ; ---------------------------------------------
+    ; シリアル送信ルーチン
+    ; alレジスタの内容をシリアル送信。dx, blは破壊される。
+    ; ---------------------------------------------
+com_send:
+    ; 送信データを退避
+    mov bl,al
 
-error_found_AA:
-    mov bh, al          ; BHに読み出し値を保存
-    jmp error_found_main
-
-; -------------------------------------------------------------
-; エラー表示ルーチン
-; 出力形式: SSSS OOOO VV (Segment Offset Value)
-; -------------------------------------------------------------
-error_found_main:
-    ; 状態フラグ(BX)を使って、セグメント表示とオフセット表示で
-    ; 同じ処理(PRINT_HEX)を使い回す。
-    ; レジスタ競合回避のため、DIをフラグとして使用
-    ; DI = 2 : セグメント表示 (4桁)
-    ; DI = 1 : オフセット表示 (4桁)
-    ; DI = 0 : 読み出し値表示 (2桁)
-
-    mov di, 2   
-
-setup_print_phase:
-    ; フェーズに応じた準備
-    cmp di, 2       ; セグメント(DS)を表示
-    je phase_segment
-    cmp di, 1
-    je phase_offset
-    jmp phase_value
-
-phase_segment:
-    mov bp, ds              ; 表示データ: DS
-    mov cx, 4               ; 4桁分ループ (4 nibbles)
-    jmp print_hex_start
-
-phase_offset:
-    mov bp, si          ; 表示データ: SI
-    mov cx, 4           ; 4桁
-    jmp print_hex_start
-
-phase_value:
-    ; BHに入っている8bit値を表示
-    mov al, bh
-    mov ah, 0           ; AX = 00xxh
-    mov bp, ax          ; 表示データ: AX
-    mov cx, 2           ; 8bitなので2桁でOK
-    jmp print_hex_start
-
-print_hex_start:
-    ; --- 16進数出力ループ ---
-print_hex_loop:
-    ; 上位4ビットを取り出すために左ローテート
-    rol bp, 1
-    rol bp, 1
-    rol bp, 1
-    rol bp, 1
-    
-    mov ax, bp              ; AXにコピー
-    and ax, 000fh           ; 下位4ビットのみ抽出 (0-F)
-
-    ; HEX ASCII変換
-    cmp al, 0ah
-    jb  is_digit
-    add al, 07h             ; 'A'-'F' の場合の調整
-is_digit:
-    add al, 30h             ; '0' のASCIIコードを足す
-
-    ; --- 文字送信 (SCU) ---
-    ; レジスタ退避ができないため、他のレジスタを壊さないよう注意
-    ; ここでは AH を作業用、AL を送信データとして使用
-    
-    mov bl, al              ; 送信文字をBLに一時退避
-
-    ; シリアル送信部
     mov dx, SCU_SST
 .wait_tx:
     in al, dx
@@ -281,32 +168,7 @@ is_digit:
     mov dx, SCU_DATA
     mov al, bl
     out dx, al
-
-    loop print_hex_loop     ; CXを減らしてループ
-
-    ; --- 16進数表示完了後の処理 ---
-    ; 読みやすくするため16進数の後にスペースをいれる
-    ; シリアル送信部
-    mov dx, SCU_SST
-.wait_tx2:
-    in al, dx
-    test al, 00000001b  ; TX Ready?
-    jz .wait_tx2
-    
-    mov dx, SCU_DATA
-    mov al, ' '
-    out dx, al
-
-    ; --- 次のフェーズへ遷移 ---
-    dec di              ; 2->1->0->(-1)
-    cmp di, -1
-    je error_done       ; 0(値)まで表示し終わったら完了
-
-    jmp setup_print_phase
-
-error_done:
-    ; --- テスト継続 ---
-    jmp next_addr
+    ret
 
 ; -----------------------------------------------------------------
 ; Padding (空白埋め)
