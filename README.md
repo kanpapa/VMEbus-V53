@@ -1,4 +1,4 @@
-# DVE-V53
+# VMEbus-V53
 
 This repository contains documentation and sources for running DENSAN's V53 VME board DVE-V53/12.
 
