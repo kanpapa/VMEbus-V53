@@ -24,4 +24,3 @@ https://kanpapa.com/2026/01/v53-vme-system-1.html
 
 ## Disclaimer
 The contents of this repository are the result of personal research and are provided "as is" without any warranty.
-
