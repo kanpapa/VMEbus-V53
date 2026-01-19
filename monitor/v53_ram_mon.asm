@@ -8,12 +8,6 @@
 ; Real:   nasm -f bin v53_ram_mon.asm -o v53_ram_mon.bin -l v53_ram_mon.lst
 ; -----------------
 
-; ▼▼▼ ROMサイズ設定 (ここを環境に合わせる) ▼▼▼
-%define ROM_SIZE_1024  0x20000  ; 27C010 (128KB)
-; 使用するROMサイズを選択
-%define ROM_TOTAL     ROM_SIZE_1024
-; ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
-
 ; ==========================================
 ; V53 System Register
 ; ==========================================
@@ -123,6 +117,11 @@ monitor_loop:
     cmp bl, 'G'
     je do_go
 
+    cmp bl, 'w'     ; Write command
+    je do_write
+    cmp bl, 'W'
+    je do_write
+
     cmp al, 'i'     ; Input Port command
     je do_in
     cmp al, 'I'
@@ -180,18 +179,19 @@ do_dump:
 .line_loop:
     push cx
     
-    mov ax, [dump_seg]   ; セグメントの表示
+    mov ax, [dump_seg]          ; セグメントの表示
     call print_hex_word
     mov al, ':'                 ; 区切り文字の:を表示
     call putc
-    mov ax, [dump_off]   ; オフセットの表示
+    mov ax, [dump_off]          ; オフセットの表示
     call print_hex_word
     mov al, ' '                 ; 区切り文字のスペースを表示
     call putc
-    
-    push ds
-    mov ds, [dump_seg]
-    mov si, [dump_off]
+
+    mov si, [dump_off]          ; DS変更前に、モニタ変数からオフセットをSIにロード
+
+    push ds                     ; モニタのDSを保存
+    mov ds, [dump_seg]          ; DSをターゲットセグメントに変更
     
     mov cx, 16                  ; 16回繰り返すカウンタ
 .hex_loop:
@@ -200,11 +200,12 @@ do_dump:
     mov al, ' '                 ; 区切り文字のスペースを表示
     call putc
     inc si                      ; 次のアドレスにする
-    loop .hex_loop              ; 16回繰り返し
-    
-    mov [dump_off], si   ; オフセットを更新
-    
-    pop ds
+    loop .hex_loop              ; 16回繰り返し    
+
+    pop ds                      ; DSをモニタ用に戻す
+
+    mov [dump_off], si          ; DS復帰後に、SIの値をモニタ変数に保存
+
     call putc_crlf              ; 改行する
     pop cx
     loop .line_loop             ; 4回繰り返す
@@ -342,6 +343,52 @@ do_go:
 .go_default:
     call putc_crlf      ; 改行して
     jmp monitor_loop    ; モニタのメインルーチンに飛ぶ
+
+; ==============================================================
+; Command: Write Memory
+; Usage:
+;   W <Seg> <Off> <Val>
+; ==============================================================
+do_write:    
+    call getc_echo      ; Space?
+    cmp al, ' '
+    jne error           ; 引数なしならリターン(またはエラー)
+
+    ; 1. セグメント (SSSS) を取得
+    call get_hex_word   ; AX = Segment
+    push ax             ; ターゲットセグメントを保存
+    
+    call getc_echo      ; Space?
+    cmp al, ' '
+    jne error           ; 引数なしならリターン(またはエラー)
+    
+    ; 2. オフセット (OOOO) を取得
+    call get_hex_word   ; AX = Offset
+    push ax             ; ターゲットオフセットを保存
+
+    call getc_echo      ; Space?
+    cmp al, ' '
+    jne error           ; 引数なしならリターン(またはエラー)
+
+    ; 3. 設定データ (VV) を取得
+    call get_hex_byte_echo   ; AL = Value
+
+    pop bx              ; bx = Offset
+    pop dx              ; dx = Target Segment
+
+    ; 次回のDコマンドのためにダンプ位置変数を更新する
+    mov [dump_seg], dx
+    mov [dump_off], bx
+    
+    mov ds, dx          ; DS再設定
+    mov [ds:bx], al     ; 書き込み！
+    
+    push cs             ; DSを復帰 (CS=DS前提のモニタなので)
+    pop ds
+
+    mov si, msg_done
+    call puts
+    jmp monitor_loop
 
 ; ==============================================================
 ; Command: Input from Port
@@ -665,7 +712,7 @@ error:
 ; =================================================================
 ; Data
 ; =================================================================
-msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.2 2026-01-18  **",0x0D,0x0A,0
+msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.2 2026-01-19  **",0x0D,0x0A,0
 msg_load: db "Load HEX...",0
 msg_ok:   db "OK",0
 msg_go:   db "Go!",0
@@ -676,7 +723,7 @@ msg_unknown:db "Unknown cmd", 0x0D, 0x0A, 0
 msg_in_res: db "Val: ", 0
 msg_done:   db "Done", 0x0D, 0x0A, 0
 msg_bar:    db " | ", 0
-msg_help:   db "Cmds: D <Seg> <Off>, L <Seg>, G <Seg> <Off>, I <Port>, O <Port> <Val>, S <Start_port> <End_port>, ?", 0x0D, 0x0A, 0
+msg_help:   db "Cmds: D <Seg> <Off>, L <Seg>, G <Seg> <Off>, W <Seg> <Off> <Val>, I <Port>, O <Port> <Val>, S <Start_port> <End_port>, ?", 0x0D, 0x0A, 0
 msg_scan_start: db "Scanning I/O (Press any key to abort)...", 0x0D, 0x0A, 0
 msg_space:      db "  ", 0
 msg_abort:      db "Aborted.", 0x0D, 0x0A, 0
