@@ -1,5 +1,5 @@
 ; =================================================================
-; V53 Monitor System v0.2  2026-01-18
+; V53 Monitor System v0.4  2026-01-21
 ; Target: V53 VME Board & DOSBox-X Simulation
 ; =================================================================
 
@@ -432,7 +432,7 @@ do_out:
     cmp al, ' '         ; スペースがあれば第2パラメタがあると判断
     jne error_pop       ; 第2パラメタが無い場合はエラー処理へ
     
-    call get_hex_byte   ; 出力値を取得
+    call get_hex_byte_echo   ; 出力値を取得
     pop dx              ; スタックからDXにセット
     
     out dx, al          ; I/O Write
@@ -480,6 +480,8 @@ do_scan:
     cmp al, 0xFF        ; 0xFF (Empty Bus) なら表示しない
     je .next_port
 
+    push ax             ; Readした値をスタックに保存
+
     ; --- 有効な値が見つかった場合の表示 ---
     ; [Port]: Value
     mov ax, bx
@@ -489,9 +491,8 @@ do_scan:
     mov al, ' '
     call putc
     
-    mov dx, bx
-    in al, dx           ; 再度読み直して表示（副作用注意）
-    call print_hex_byte ; Value
+    pop ax
+    call print_hex_byte ; Readした値の表示
     
     mov si, msg_space   ; "  "
     call puts
@@ -712,7 +713,7 @@ error:
 ; =================================================================
 ; Data
 ; =================================================================
-msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.3 2026-01-19  **",0x0D,0x0A,0
+msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.4 2026-01-21  **",0x0D,0x0A,0
 msg_load: db "Load HEX...",0
 msg_ok:   db "OK",0
 msg_go:   db "Go!",0
