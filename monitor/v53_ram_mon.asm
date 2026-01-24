@@ -1,5 +1,5 @@
 ; =================================================================
-; V53 Monitor System v0.4  2026-01-21
+; V53 Monitor System v0.5  2026-01-24
 ; Target: V53 VME Board & DOSBox-X Simulation
 ; =================================================================
 
@@ -16,7 +16,7 @@
 %define OPHA    0x0FFFC ; 内蔵ペリフェラル・リロケーション・レジスタ
 %define DULA    0x0FFFB ; 
 %define IULA    0x0FFFA ; 
-%define TULA    0x0FFF9 ; 
+%define TULA    0x0FFF9 ; TCUリロケーション・レジスタ
 %define SULA    0x0FFF8 ; SCUリロケーション・レジスタ 
 %define WCY4    0x0FFF6 ; プログラマブル・ウェイト・サイクル数設定レジスタ4
 %define WCY3    0x0FFF5 ; プログラマブル・ウェイト・サイクル数設定レジスタ3
@@ -24,7 +24,7 @@
 %define WMB1    0x0FFF3 ; プログラマブル・ウェイト・メモリ領域設定レジスタ1
 %define RFC     0x0FFF2 ; リフレッシュ・コントロール・レジスタ
 %define SBCR    0x0FFF1 ; 
-%define TCKS    0x0FFF0 ; 
+%define TCKS    0x0FFF0 ; タイマー・クロック選択レジスタ
 %define WAC     0x0FFED ; プログラマブル・ウェイト・メモリ・アドレス・コントロール・レジスタ
 %define WCY0    0x0FFEC ; プログラマブル・ウェイト・サイクル数設定レジスタ0
 %define WCY1    0x0FFEB ; プログラマブル・ウェイト・サイクル数設定レジスタ1
@@ -51,7 +51,7 @@
     org 0
     cpu 186
 
-    ; SCUレジスタ (SCUは1260Hに仮配置）
+    ; SCUレジスタ (SCUは1260Hに配置）
     %define SCU_DATA    0x01260 ; 送受データ・レジスタ(R:SRB/W:STB)
     %define SCU_SST     0x01261 ; ステータス・レジスタ(R:SST)
     %define SCU_SCM     0x01261 ; コマンドレジスタ(W:SCM)
@@ -59,6 +59,15 @@
     %define SCU_SIMK    0x01263 ; シリアル割り込みマスクレジスタ(R/W:SIMK)
     %define TX_READY    00000001b   ; TBRDY                                 
     %define RX_READY    00000010b   ; RBRDY
+
+    ; --- タイマーレジスタ (TCUは1270Hに配置) ---
+    %define TM0_CNT     0x01270 ; Timer 0 Counter
+    %define TM1_CNT     0x01271 ; Timer 1 Counter
+    %define TM2_CNT     0x01272 ; Timer 2 Counter
+    %define TM_CTL      0x01273 ; Timer Control
+
+    %define DIV_LOW     0x04 ; 分周比 4 (1.2288MHz -> 307.2kHz)
+    %define DIV_HIGH    0x00
 %endif
 
 section .text
@@ -78,7 +87,72 @@ start:
     pop ds
     push cs
     pop es
-    ; スタックは簡易モニタのものをそのまま使う    
+    ; スタックは簡易モニタのものをそのまま使う
+
+    ;------------------------------------------
+    ; TCUの追加設定
+    ;------------------------------------------
+    ; 1. 内蔵周辺機能の有効化 (OPSEL)
+    ;------------------------------------------
+    mov  dx, OPSEL
+    in   al, dx
+    or   al, 00000100b   ; Bit 2 (TCU) をセット
+    out  dx, al
+
+    ;------------------------------------------
+    ; 2. レジスタ配置アドレスの設定 (TULA)
+    ;------------------------------------------
+    mov dx, TULA
+    mov al, 0x70    ; 下位アドレス
+    out dx, al
+
+    ;------------------------------------------
+    ; 3. TCKS: タイマクロック入力選択
+    ;------------------------------------------
+    mov  dx, TCKS
+    mov  al, 00011100b   ; Timer1: TCLK端子入力使用
+    out  dx, al
+
+    ;------------------------------------------
+    ; 3. タイマー初期化 (Mode 3 / Square Wave)
+    ;------------------------------------------
+    mov  dx, TM_CTL
+
+    ; --- Timer 0 Setup ---
+    mov  al, 0x36         ; Mode 3, Binary, LSB/MSB
+    out  dx, al
+    
+    ; --- Timer 1 Setup ---
+    mov  al, 0x76         ; Mode 3, Binary, LSB/MSB
+    out  dx, al
+
+    ; --- Timer 2 Setup ---
+    mov  al, 0xb6         ; Mode 3, Binary, LSB/MSB
+    out  dx, al
+
+    ;------------------------------------------
+    ; 4. カウンタ値 (分周比) のロード
+    ;------------------------------------------
+    ; Timer 0
+    mov  dx, TM0_CNT
+    mov  al, DIV_LOW
+    out  dx, al
+    mov  al, DIV_HIGH
+    out  dx, al
+
+    ; Timer 1
+    mov  dx, TM1_CNT
+    mov  al, DIV_LOW
+    out  dx, al
+    mov  al, DIV_HIGH
+    out  dx, al
+
+        ; Timer 2
+    mov  dx, TM2_CNT
+    mov  al, DIV_LOW
+    out  dx, al
+    mov  al, DIV_HIGH
+    out  dx, al
 %endif
 
     ; 変数初期化 (RAMエリアをクリア)
@@ -713,7 +787,7 @@ error:
 ; =================================================================
 ; Data
 ; =================================================================
-msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.4 2026-01-21  **",0x0D,0x0A,0
+msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.5 2026-01-24  **",0x0D,0x0A,0
 msg_load: db "Load HEX...",0
 msg_ok:   db "OK",0
 msg_go:   db "Go!",0
