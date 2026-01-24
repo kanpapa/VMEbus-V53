@@ -11,9 +11,6 @@ cpu 186
 OPSEL_ADDR  EQU  0x0FFFD        ; OPSEL: Internal Peripheral Selection
 TULA_ADDR   EQU  0x0FFF9        ; TULA:  Relocation Register
 
-; --- 内蔵I/Oベースアドレス設定 ---
-IO_BASE     EQU  01270H         ; TCUを1270hに配置
-
 ; --- TCUレジスタ ---
 TM0_CNT     EQU  0x1270         ; Timer 0 Counter
 TM1_CNT     EQU  0x1271         ; Timer 1 Counter
@@ -31,7 +28,7 @@ SECTION .text
 ;----------------------------------------------------------------------
 ; Init_V53_Peripherals:
 ; 1. OPSEL で TCU を有効化
-; 2. TULA  で I/O アドレスを 1270h に再配置
+; 2. TULA  で TCU のI/O アドレスを 1270h に配置
 ; 3. タイマーを Mode 3 (矩形波) に設定しクロック出力開始
 ;----------------------------------------------------------------------
 Init_V53_Peripherals:
