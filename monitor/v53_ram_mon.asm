@@ -68,6 +68,12 @@
 
     %define DIV_LOW     0x04 ; 分周比 4 (1.2288MHz -> 307.2kHz)
     %define DIV_HIGH    0x00
+
+    ;-----------------------------------------
+    ; V53 VME Board ペリフェラル
+    ;-----------------------------------------
+    %define USART_DATA  0x00d8  ; μPD71051 (USART)	Data Register
+    %define USART_CMD   0x00da  ; μPD71051 (USART)	Cmd/Status
 %endif
 
 section .text
@@ -147,13 +153,42 @@ start:
     mov  al, DIV_HIGH
     out  dx, al
 
-        ; Timer 2
+    ; Timer 2
     mov  dx, TM2_CNT
     mov  al, DIV_LOW
     out  dx, al
     mov  al, DIV_HIGH
     out  dx, al
-%endif
+
+    ;------------------------------------------
+    ; μPD71051 (USART) 初期化
+    ;------------------------------------------
+    mov al, 0
+    out USART_CMD, al
+ 
+    mul cx              ; wait
+    mul cx              ; wait
+    out USART_CMD, al
+ 
+    mul cx              ; wait
+    mul cx              ; wait
+    out USART_CMD, al
+ 
+    mul cx              ; wait
+    mul cx              ; wait
+    mov al, 0x40        ; reset
+    out USART_CMD, al
+ 
+    mul cx              ; wait
+    mul cx              ; wait
+    mov al, 0x4e        ; set mode
+    out USART_CMD, al
+ 
+    mul cx              ; wait
+    mul cx              ; wait
+    mov al, 0x37        ; rx,tx ready
+    out USART_CMD, al
+ %endif
 
     ; 変数初期化 (RAMエリアをクリア)
     mov word [dump_seg], 0x0000
