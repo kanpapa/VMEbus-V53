@@ -1,0 +1,101 @@
+     1                                  ;======================================================================
+     2                                  ; V53 Internal Peripheral Initialization
+     3                                  ; Enable TCU (Timer Counter Unit) & Set Base Address
+     4                                  ;======================================================================
+     5                                  
+     6                                  BITS 16
+     7                                  ORG 0x0000
+     8                                  cpu 186
+     9                                  
+    10                                  ; --- システム制御レジスタ ---
+    11                                  OPSEL_ADDR  EQU  0x0FFFD        ; OPSEL: Internal Peripheral Selection
+    12                                  TULA_ADDR   EQU  0x0FFF9        ; TULA:  Relocation Register
+    13                                  
+    14                                  ; --- 内蔵I/Oベースアドレス設定 ---
+    15                                  IO_BASE     EQU  01270H         ; TCUを1270hに配置
+    16                                  
+    17                                  ; --- TCUレジスタ ---
+    18                                  TM0_CNT     EQU  0x1270         ; Timer 0 Counter
+    19                                  TM1_CNT     EQU  0x1271         ; Timer 1 Counter
+    20                                  TM2_CNT     EQU  0x1272         ; Timer 2 Counter
+    21                                  TM_CTL      EQU  0x1273         ; Timer Control
+    22                                  TCKS_REG    EQU  0x0FFF0        ; Clock Selection
+    23                                  
+    24                                  ; --- 分周比設定 ---
+    25                                  ; Input 1.2288 MHz / Target 307.2 kHz = 4.0
+    26                                  DIV_LOW     EQU  4
+    27                                  DIV_HIGH    EQU  00H
+    28                                  
+    29                                  SECTION .text
+    30                                  
+    31                                  ;----------------------------------------------------------------------
+    32                                  ; Init_V53_Peripherals:
+    33                                  ; 1. OPSEL で TCU を有効化
+    34                                  ; 2. TULA  で I/O アドレスを 1270h に再配置
+    35                                  ; 3. タイマーを Mode 3 (矩形波) に設定しクロック出力開始
+    36                                  ;----------------------------------------------------------------------
+    37                                  Init_V53_Peripherals:
+    38                                      ;------------------------------------------
+    39                                      ; 1. 内蔵周辺機能の有効化 (OPSEL)
+    40                                      ;------------------------------------------
+    41 00000000 BAFDFF                      mov  dx, OPSEL_ADDR
+    42 00000003 EC                          in   al, dx          ; 現在の値を読み出す（安全のため）
+    43 00000004 0C04                        or   al, 00000100b   ; Bit 2 TCU (Timer) Enableをセット
+    44 00000006 EE                          out  dx, al
+    45                                  
+    46                                      ;------------------------------------------
+    47                                      ; 2. レジスタ配置アドレスの設定 (TULA)
+    48                                      ;------------------------------------------
+    49 00000007 BAF9FF                      mov dx, TULA_ADDR
+    50 0000000A B070                        mov al, 0x70        ; 下位アドレス
+    51 0000000C EE                          out dx, al
+    52                                  
+    53                                      ;------------------------------------------
+    54                                      ; 3. TCKS: タイマクロック入力選択
+    55                                      ;------------------------------------------
+    56 0000000D BAF0FF                      mov  dx, TCKS_REG
+    57 00000010 B01C                        mov  al, 00011100b  ; 全Timer: TCLK端子入力使用
+    58 00000012 EE                          out  dx, al
+    59                                      
+    60                                      ;------------------------------------------
+    61                                      ; 3. タイマー初期化 (Mode 3 / Square Wave)
+    62                                      ;------------------------------------------
+    63 00000013 BA7312                      mov  dx, TM_CTL
+    64                                  
+    65                                      ; --- Timer 0 Setup ---
+    66 00000016 B036                        mov  al, 0x36         ; Mode 3, Binary, LSB/MSB
+    67 00000018 EE                          out  dx, al
+    68                                      
+    69                                      ; --- Timer 1 Setup ---
+    70 00000019 B076                        mov  al, 0x76         ; Mode 3, Binary, LSB/MSB
+    71 0000001B EE                          out  dx, al
+    72                                  
+    73                                      ; --- Timer 2 Setup ---
+    74 0000001C B0B6                        mov  al, 0xB6        ; Mode 3, Binary, LSB/MSB
+    75 0000001E EE                          out  dx, al
+    76                                  
+    77                                      ;------------------------------------------
+    78                                      ; 4. カウンタ値 (分周比) のロード
+    79                                      ;------------------------------------------
+    80                                      ; Timer 0
+    81 0000001F BA7012                      mov  dx, TM0_CNT
+    82 00000022 B004                        mov  al, DIV_LOW
+    83 00000024 EE                          out  dx, al
+    84 00000025 B000                        mov  al, DIV_HIGH
+    85 00000027 EE                          out  dx, al
+    86                                  
+    87                                      ; Timer 1
+    88 00000028 BA7112                      mov  dx, TM1_CNT
+    89 0000002B B004                        mov  al, DIV_LOW
+    90 0000002D EE                          out  dx, al
+    91 0000002E B000                        mov  al, DIV_HIGH
+    92 00000030 EE                          out  dx, al
+    93                                  
+    94                                      ; Timer 2
+    95 00000031 BA7212                      mov  dx, TM2_CNT
+    96 00000034 B004                        mov  al, DIV_LOW
+    97 00000036 EE                          out  dx, al
+    98 00000037 B000                        mov  al, DIV_HIGH
+    99 00000039 EE                          out  dx, al
+   100                                  
+   101 0000003A EA00000020                  jmp 0x2000:0000   ; Far Jump to start of RAM monitor
