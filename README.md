@@ -14,6 +14,8 @@ https://kanpapa.com/2026/01/v53-vme-system-1.html
     * A program to perform a serial port echoback test.
   * [ram_test](ram_test)
     * A generic memory test program.
+  * [set_timer](set_timer)
+    * A V53 TCU test program.
 
 * Monitor program
   * [monitor](monitor)
