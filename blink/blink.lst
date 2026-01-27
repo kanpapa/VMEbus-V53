@@ -1,0 +1,54 @@
+     1                                  ;==========================================================
+     2                                  ; V53 PPI Port A Blink (L-Chika)
+     3                                  ; Port: 00E0h (Port A)
+     4                                  ; Ctrl: 00E6h
+     5                                  ;==========================================================
+     6                                  bits 16
+     7                                  org 0x1000
+     8                                  
+     9                                  PORT_A      equ 0x00E0
+    10                                  PORT_CTRL   equ 0x00E6
+    11                                  
+    12                                  Start:
+    13                                      ; 1. PPI初期化 (Mode 0, All Output)
+    14                                      ;    1000 0000 b = 80h
+    15 00000000 BAE600                      mov  dx, PORT_CTRL
+    16 00000003 B080                        mov  al, 0x80
+    17 00000005 EE                          out  dx, al
+    18                                  
+    19                                  Loop:
+    20                                      ; 2. 点灯 (FFh)
+    21 00000006 BAE000                      mov  dx, PORT_A
+    22 00000009 B0FF                        mov  al, 0xff
+    23 0000000B EE                          out  dx, al
+    24                                  
+    25 0000000C E80800                      CALL Delay         ; 待つ
+    26                                  
+    27                                      ; 3. 消灯 (00h)
+    28 0000000F B000                        mov  al, 0x00
+    29 00000011 EE                          out  dx, al
+    30                                  
+    31 00000012 E80200                      call Delay         ; 待つ
+    32                                  
+    33 00000015 EBEF                        jmp  Loop
+    34                                  
+    35                                  ;--- ウェイトルーチン (二重ループ) ---
+    36                                  Delay:
+    37 00000017 53                          push bx             ; レジスタ退避
+    38 00000018 51                          push cx
+    39                                  
+    40 00000019 BB2000                      mov  bx, 0x0020     ; 外側ループ回数 (約32回)
+    41                                  
+    42                                  Delay_Outer:
+    43 0000001C B90000                      mov  cx, 0x0000     ; 内側ループ (0指定で65536回回ります)
+    44                                      
+    45                                  Delay_Inner:
+    46 0000001F 90                          nop                 ; 時間稼ぎ
+    47 00000020 E2FD                        loop Delay_Inner    ; CXを減らしてループ (V53はここが高速)
+    48                                  
+    49 00000022 4B                          dec  bx             ; 外側カウンタを減らす
+    50 00000023 75F7                        jnz  Delay_Outer    ; BXが0になるまで繰り返す
+    51                                  
+    52 00000025 59                          pop  cx             ; レジスタ復帰
+    53 00000026 5B                          pop  bx
+    54 00000027 C3                          ret

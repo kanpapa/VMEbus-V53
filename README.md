@@ -16,6 +16,8 @@ https://kanpapa.com/2026/01/v53-vme-system-1.html
     * A generic memory test program.
   * [set_timer](set_timer)
     * A V53 TCU test program.
+  * [blink](blink)
+    * A uPD71055 PPI test program.
 
 * Monitor program
   * [monitor](monitor)
