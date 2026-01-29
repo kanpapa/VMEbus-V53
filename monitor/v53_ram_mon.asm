@@ -1,5 +1,5 @@
 ; =================================================================
-; V53 Monitor System v0.5  2026-01-24
+; V53 Monitor System v0.6  2026-01-29
 ; Target: V53 VME Board & DOSBox-X Simulation
 ; =================================================================
 
@@ -84,6 +84,20 @@ start:
     mov es, ax
 %else
     cli
+
+    ;==============================================
+    ; ABORT (NMI) Handler Setup 
+    ;==============================================
+Init_NMI:
+    ; 割り込みベクタテーブル (Vector 2 = NMI) の書き換え
+    xor  ax, ax
+    mov  es, ax          ; ES = 0000h
+    
+    mov  di, 0x0008      ; Vector 2 Address offset
+    mov  ax, NMI_Handler ; ハンドラのアドレス (IP)
+    stosw                ; [0000:0008] = AX
+    mov  ax, cs          ; 現在のCS
+    stosw                ; [0000:000A] = CS
 
     ; ---------------------------------------------
     ; 1. セグメントレジスタ初期化
@@ -819,10 +833,94 @@ error:
     call puts
     jmp monitor_loop
 
+;==========================================================
+; NMI (ABORT) Handler
+;==========================================================
+
+NMI_Handler:
+    ; 1. 全レジスタを退避 (V53は80186互換なのでPUSHAが使えます)
+    pusha               ; DI, SI, BP, SP, BX, DX, CX, AX の順でPush
+    push ds
+    push es
+
+    ; 2. セグメントをモニタ用に設定 (表示ルーチンを使うため)
+    mov  ax, cs
+    mov  ds, ax
+    mov  es, ax
+
+    ; 3. スタックフレームへのポインタ設定
+    mov  bp, sp
+
+    ; --- 画面表示 ---
+    mov  si, msg_nmi
+    call puts           ; " *** ABORT INTERRUPT ***"
+
+    ; 3. レジスタ表示 (スタックから読み出して表示)
+    ; Stack Layout after pushes:
+    ; BP+0: ES
+    ; BP+2: DS
+    ; BP+4: DI
+    ; BP+6: SI
+    ; BP+8: BP (Old)
+    ; BP+10: SP (Original)
+    ; BP+12: BX
+    ; BP+14: DX
+    ; BP+16: CX
+    ; BP+18: AX
+    ; BP+20: IP (Return Addr)
+    ; BP+22: CS (Return Addr)
+    ; BP+24: Flags
+    
+    ; AX
+    mov  si, msg_ax
+    call puts
+    mov  ax, [bp+18]        ; PUSHAで保存されたAX
+    call print_hex_word     ; 4桁HEX表示ルーチン
+
+    ; BX
+    mov  si, msg_bx
+    call puts
+    mov  ax, [bp+12]
+    call print_hex_word
+
+    ; CX
+    mov  si, msg_cx
+    call puts
+    mov  ax, [bp+16]
+    call print_hex_word
+
+    ; DX
+    mov  si, msg_dx
+    call puts
+    mov  ax, [bp+14]
+    call print_hex_word
+
+    call putc_crlf
+
+    ; --- 中断地点 (CS:IP) の表示 ---
+    ; PUSHA(16byte) + DS(2) + ES(2) = 20byte
+    ; その上が割り込み発生時の IP, CS, Flags です
+    
+    mov  si, msg_addr
+    call puts           ; " Stop at "
+    mov  ax, [bp+22]    ; Stack上の CS
+    call print_hex_word
+    mov  al, ':'
+    call putc
+    mov  ax, [bp+20]    ; Stack上の IP
+    call print_hex_word
+
+    call putc_crlf
+
+    ; 4. 復帰処理
+    ; ここでモニタのコマンド待ちへ強制ジャンプします
+    ; (レジスタはスタックに残ったままになりますが、モニタ再起動でリセットされる前提)
+    jmp  start  ; モニタの開始ラベルへ
+
 ; =================================================================
 ; Data
 ; =================================================================
-msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.5 2026-01-24  **",0x0D,0x0A,0
+msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.6 2026-01-29  **",0x0D,0x0A,0
 msg_load: db "Load HEX...",0
 msg_ok:   db "OK",0
 msg_go:   db "Go!",0
@@ -837,6 +935,14 @@ msg_help:   db "Cmds: D <Seg> <Off>, L <Seg>, G <Seg> <Off>, W <Seg> <Off> <Val>
 msg_scan_start: db "Scanning I/O (Press any key to abort)...", 0x0D, 0x0A, 0
 msg_space:      db "  ", 0
 msg_abort:      db "Aborted.", 0x0D, 0x0A, 0
+
+; --- NMIハンドラメッセージ定義 ---
+msg_nmi:  db 0x0D, 0x0A, "*** ABORT (NMI) ***", 0x0D, 0x0A, 0
+msg_ax:   db " AX=", 0
+msg_bx:   db " BX=", 0
+msg_cx:   db " CX=", 0
+msg_dx:   db " DX=", 0
+msg_addr: db " Stop at CS:IP = ", 0
 
 ; 変数
 dump_seg:   dw  0x0000  ; Dump: セグメント保存用
