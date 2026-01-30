@@ -1,5 +1,5 @@
 ; =================================================================
-; V53 Monitor System v0.6  2026-01-29
+; V53 Monitor System v0.7 2026-01-31
 ; Target: V53 VME Board & DOSBox-X Simulation
 ; =================================================================
 
@@ -339,7 +339,12 @@ monitor_loop:
     je do_scan
     cmp al, 'S'
     je do_scan
-    
+
+    cmp al, 't'     ; Scan Timer wait command
+    je do_timer
+    cmp al, 'T'
+    je do_timer
+
     cmp al, '?'     ; Help
     je cmd_help
 
@@ -729,6 +734,57 @@ do_scan:
     jmp monitor_loop
 
 ; ==============================================================
+; Command: Timer (ms)
+;   T          -> Show current tick counter (32-bit HEX)
+;   T <val>    -> Wait for <val> ticks (10ms unit)
+; ==============================================================
+do_timer:
+    call getc_echo      ; コマンド('T')の次の文字を取得
+    cmp al, 0x0D        ; Enterキー(CR)なら表示モードへ
+    je .show_counter
+    cmp al, ' '         ; スペースならWaitモードへ
+    jne error           ; それ以外はエラー
+
+    ; --- Wait Mode (引数あり: T 0064 等) ---
+    call get_hex_word   ; AX = 待ち時間 (0064h = 1秒)
+
+    ; 開始時刻を保存 (Start Time)
+    mov bx, [tick_counter_lo]
+
+.wait_loop:
+    ; 1. 現在時刻を取得
+    mov cx, [tick_counter_lo]
+    
+    ; 2. 経過時間を計算 (Current - Start)
+    ; オーバーフローしても、この引き算の結果は正しい経過時間になる
+    sub cx, bx          
+    
+    ; 3. 経過時間 < 待ち時間 ならループ継続
+    cmp cx, ax
+    jb .wait_loop       ; Jump if Below (unsigned compare)
+
+    ; 指定時間経過した
+    mov si, msg_done
+    call puts
+    jmp monitor_loop
+
+.show_counter:
+    ; --- Show Counter Mode (引数なし: Tのみ) ---
+    call putc_crlf
+    
+    mov si, msg_tick    ; "Tick: "
+    call puts
+
+    ; 32bitカウンタを [High][Low] の順で表示
+    mov ax, [tick_counter_hi]
+    call print_hex_word
+    mov ax, [tick_counter_lo]
+    call print_hex_word
+    
+    call putc_crlf
+    jmp monitor_loop
+
+; ==============================================================
 ; Command: Help
 ; ==============================================================
 cmd_help:
@@ -1004,9 +1060,16 @@ _tick_handler:
     push ax
     push dx
 
-    ; シリアルポートに'.'を出力
-    mov al, '.'          ; debug char
-    out USART_DATA, al   ; USARTのDataポートに出力
+    ; CS (コードセグメント) と DS (データセグメント) を合わせる
+    ; (Tiny Model的な動作のため)
+    mov ax, cs
+    mov ds, ax
+
+    ; --- 32bit カウンタのインクリメント ---
+    inc word [tick_counter_lo]
+    jnz .skip_carry
+    inc word [tick_counter_hi]
+.skip_carry:
 
     ; --- EOI (End of Interrupt) to PIC ---
     mov al, 20h     ; Non-specific EOI
@@ -1025,7 +1088,7 @@ _tick_handler:
 ; =================================================================
 ; Data
 ; =================================================================
-msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.6 2026-01-29  **",0x0D,0x0A,0
+msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.7 2026-01-31  **",0x0D,0x0A,0
 msg_load: db "Load HEX...",0
 msg_ok:   db "OK",0
 msg_go:   db "Go!",0
@@ -1034,12 +1097,13 @@ msg_prompt: db "> ", 0
 msg_error:  db "Error", 0x0D, 0x0A, 0
 msg_unknown:db "Unknown cmd", 0x0D, 0x0A, 0
 msg_in_res: db "Val: ", 0
-msg_done:   db "Done", 0x0D, 0x0A, 0
+msg_done:   db " Done", 0x0D, 0x0A, 0
 msg_bar:    db " | ", 0
-msg_help:   db "Cmds: D <Seg> <Off>, L <Seg>, G <Seg> <Off>, W <Seg> <Off> <Val>, I <Port>, O <Port> <Val>, S <Start_port> <End_port>, ?", 0x0D, 0x0A, 0
+msg_help:   db "Cmds: D <Seg> <Off>, L <Seg>, G <Seg> <Off>, W <Seg> <Off> <Val>, I <Port>, O <Port> <Val>, S <Start_port> <End_port>, T <ms> ?", 0x0D, 0x0A, 0
 msg_scan_start: db "Scanning I/O (Press any key to abort)...", 0x0D, 0x0A, 0
 msg_space:      db "  ", 0
 msg_abort:      db "Aborted.", 0x0D, 0x0A, 0
+msg_tick:   db "Tick: ", 0
 
 ; --- NMIハンドラメッセージ定義 ---
 msg_nmi:  db 0x0D, 0x0A, "*** ABORT (NMI) ***", 0x0D, 0x0A, 0
@@ -1053,3 +1117,5 @@ msg_addr: db " Stop at CS:IP = ", 0
 dump_seg:   dw  0x0000  ; Dump: セグメント保存用
 dump_off:   dw  0x0000  ; Dump: オフセット保存用
 load_seg:   dw  0x0000  ; Load: ターゲットセグメント
+tick_counter_lo: dw 0x0000  ; Tick: 下位16bit
+tick_counter_hi: dw 0x0000  ; Tick: 上位16bit
