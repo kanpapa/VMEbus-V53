@@ -153,21 +153,21 @@ Init_NMI:
     ;------------------------------------------
     ; 4. カウンタ値 (分周比) のロード
     ;------------------------------------------
-    ; Timer 0
+    ; Timer 0 (INTP0) 100Hz
     mov  dx, TM0_CNT
-    mov  al, DIV_LOW
+    mov  al, 0
     out  dx, al
-    mov  al, DIV_HIGH
+    mov  al, 0x30
     out  dx, al
 
-    ; Timer 1
+    ; Timer 1 (INTP2) 100Hz
     mov  dx, TM1_CNT
-    mov  al, DIV_LOW
+    mov  al, 0
     out  dx, al
-    mov  al, DIV_HIGH
+    mov  al, 0x30
     out  dx, al
 
-    ; Timer 2
+    ; Timer 2 (USART Tx/RxCLK)
     mov  dx, TM2_CNT
     mov  al, DIV_LOW
     out  dx, al
