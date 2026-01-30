@@ -15,7 +15,7 @@
 %define OPSEL   0x0FFFD ; 内蔵ペリフェラル選択レジスタ
 %define OPHA    0x0FFFC ; 内蔵ペリフェラル・リロケーション・レジスタ
 %define DULA    0x0FFFB ; 
-%define IULA    0x0FFFA ; 
+%define IULA    0x0FFFA ; ICUリロケーション・レジスタ
 %define TULA    0x0FFF9 ; TCUリロケーション・レジスタ
 %define SULA    0x0FFF8 ; SCUリロケーション・レジスタ 
 %define WCY4    0x0FFF6 ; プログラマブル・ウェイト・サイクル数設定レジスタ4
@@ -69,11 +69,18 @@
     %define DIV_LOW     0x04 ; 分周比 4 (1.2288MHz -> 307.2kHz)
     %define DIV_HIGH    0x00
 
+    ; V53 ICU (1280Hに配置)
+    %define ICU_REG0    0x01280
+    %define ICU_REG1    0x01281
+    
     ;-----------------------------------------
     ; V53 VME Board ペリフェラル
     ;-----------------------------------------
     %define USART_DATA  0x00d8  ; μPD71051 (USART)	Data Register
     %define USART_CMD   0x00da  ; μPD71051 (USART)	Cmd/Status
+
+    %define PIC_REG0    0x00c8  ; μPD71059 (PIC)	IRR/ISR/IW1/PCFW/MCW	
+    %define PIC_REG1    0x00cA  ; μPD71059 (PIC)	IMR/IW2/IW3/IW4
 %endif
 
 section .text
@@ -83,7 +90,15 @@ start:
     xor ax, ax
     mov es, ax
 %else
-    cli
+    cli             ; 初期化中は割り込み禁止
+
+    ; --- 【重要】スタックの初期化 ---
+    ; 現在のセグメント (CS=2000h) の末尾 (FFFEh) にスタックを移動させます。
+    ; これでコード領域との衝突を回避します。
+    mov ax, cs
+    mov ss, ax
+    mov sp, 0xFFFE
+    ; ------------------------------
 
     ;==============================================
     ; ABORT (NMI) Handler Setup 
@@ -98,6 +113,14 @@ Init_NMI:
     stosw                ; [0000:0008] = AX
     mov  ax, cs          ; 現在のCS
     stosw                ; [0000:000A] = CS
+
+    ; Tick用割り込みベクタテーブル (Vector 27h = V53 INTP7)
+    ; 0x27 * 4 = 9Ch
+    mov  di, 0x009c      ; Vector 27h Address offset
+    mov  ax, _tick_handler ; ハンドラのアドレス (IP)
+    stosw                ; [0000:009c] = AX
+    mov  ax, cs          ; 現在のCS
+    stosw                ; [0000:009e] = CS
 
     ; ---------------------------------------------
     ; 1. セグメントレジスタ初期化
@@ -202,6 +225,63 @@ Init_NMI:
     mul cx              ; wait
     mov al, 0x37        ; rx,tx ready
     out USART_CMD, al
+
+    ;------------------------------------------
+    ; μPD71059 (PIC) 初期化
+    ;------------------------------------------
+    mov al, 13h         ; ICW1: Edge, Single, ICW4 needed
+    out PIC_REG0, al
+
+    mov al, 20h         ; ICW2: Vector Offset = 20h (INT 32)
+    out PIC_REG1, al
+                        ; ICW3 is skipped in Single Mode
+    mov al, 01h         ; ICW4: 8086 Mode, Normal EOI
+    out PIC_REG1, al
+
+    mov al, 0FEh        ; OCW1: Unmask IR0 (Timer) only. (1111 1110)
+    out PIC_REG1, al
+
+    ;------------------------------------------
+    ; ICUの追加設定
+    ;------------------------------------------
+    ; 1. 内蔵周辺機能の有効化 (OPSEL)
+    ;------------------------------------------
+    mov  dx, OPSEL
+    in   al, dx
+    or   al, 00000010b   ; Bit 1 (ICU) をセット
+    out  dx, al
+
+    ;------------------------------------------
+    ; 2. レジスタ配置アドレスの設定 (IULA)
+    ;------------------------------------------
+    mov dx, IULA
+    mov al, 0x80    ; 下位アドレス
+    out dx, al
+
+    ;------------------------------------------
+    ; 3. 割り込みマスクの設定 (Enable INTP7)
+    ;------------------------------------------
+    mov dx, ICU_REG0
+    mov al, 13h     ; ICW1: Edge, Single, ICW4 needed
+    out dx, al
+
+    mov dx, ICU_REG1
+    mov al, 20h     ; ICW2: Vector Offset = 20h (INT 32)
+    out dx, al
+                    ; ICW3 is skipped in Single Mode
+    mov al, 01h     ; ICW4: 8086 Mode, Normal EOI
+    out dx, al
+
+    ; Bit 7 (INTP7) を 0 (許可) にします。
+    in  al, dx
+    and al, 7Fh     ; 0111 1111 (Bit 7をクリア)
+    out dx, al
+
+    ;-------------------------------------------
+    ; 割り込み許可
+    ;-------------------------------------------
+    sti
+
  %endif
 
     ; 変数初期化 (RAMエリアをクリア)
@@ -916,6 +996,31 @@ NMI_Handler:
     ; ここでモニタのコマンド待ちへ強制ジャンプします
     ; (レジスタはスタックに残ったままになりますが、モニタ再起動でリセットされる前提)
     jmp  start  ; モニタの開始ラベルへ
+
+;==========================================================
+; Tick Handler
+;==========================================================
+_tick_handler:
+    push ax
+    push dx
+
+    ; シリアルポートに'.'を出力
+    mov al, '.'          ; debug char
+    out USART_DATA, al   ; USARTのDataポートに出力
+
+    ; --- EOI (End of Interrupt) to PIC ---
+    mov al, 20h     ; Non-specific EOI
+
+    ; 外部PIC (Slave) の割り込み完了
+    out PIC_REG0, al
+
+    ; V53内蔵ICU (Master) の割り込み完了
+    mov dx, ICU_REG0 
+    out dx, al
+
+    pop dx
+    pop ax
+    iret
 
 ; =================================================================
 ; Data
