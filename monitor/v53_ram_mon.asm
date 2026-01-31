@@ -106,6 +106,22 @@ start:
     ; ABORT (NMI) Handler Setup 
     ;==============================================
 Init_NMI:
+    ; ----------------------------------------------------
+    ; 1. 全ベクタ (00h-FFh) をデフォルトハンドラで埋める
+    ;    (予期せぬ割り込みによる暴走を防ぐ安全策)
+    ; ----------------------------------------------------
+    xor ax, ax
+    mov es, ax          ; ES = 0000h (Vector Table)
+    mov di, 0           ; Offset 0
+
+    mov cx, 256         ; 256個のベクタ全てを設定
+.init_loop:
+    mov ax, _default_int_unknown_handler ; 共通トラップハンドラ
+    stosw               ; Offset書き込み
+    mov ax, cs
+    stosw               ; Segment書き込み
+    loop .init_loop
+
     ; 割り込みベクタテーブル (Vector 2 = NMI) の書き換え
     xor  ax, ax
     mov  es, ax          ; ES = 0000h
@@ -116,7 +132,7 @@ Init_NMI:
     mov  ax, cs          ; 現在のCS
     stosw                ; [0000:000A] = CS
 
-    ; ICU割り込みベクタの登録 (0x20 - 0x27)
+    ; ICU割り込みベクタを上書き登録 (0x20 - 0x27)
     
     ; Vector 20h (ICU INTP0)
     mov  di, 0x0080      ; 0x20 * 4 = 80h
@@ -168,9 +184,9 @@ Init_NMI:
     stosw
 
     ; Vector 27h (ICU INTP7 <-- PIC)
-    ; PIC用割り込みベクタテーブル
+    ; PIC Dispatcher
     mov  di, 0x009c      ; Vector 27h Address offset
-    mov  ax, _tick_handler ; Tick割り込みハンドラのアドレス (IP)
+    mov  ax, _pic_dispatch_handler
     stosw                ; [0000:009c] = AX
     mov  ax, cs          ; 現在のCS
     stosw                ; [0000:009e] = CS
@@ -1173,26 +1189,111 @@ _isr_stub_25: push 0x0025       ; ICU INTP5
 _isr_stub_26: push 0x0026       ; ICU INTP6
               jmp _default_int_handler
 
-; Note: Vector 27h (INTP7) は _tick_handler で使用中なのでここには含めません
+; Note: Vector 27h (INTP7) は _pic_dispatch_handler で使用中なのでここには含めません
 
-;==========================================================
-; Tick Handler
-;==========================================================
-_tick_handler:
-    push ax
-    push dx
+; ==========================================================
+; PIC Dispatch Handler (Vector 27h)
+; Handles: Timer, Serial, SCSI, PPI via PIC uPD71059
+; ==========================================================
+_pic_dispatch_handler:
+    pusha
+    push ds
+    push es
 
-    ; CS (コードセグメント) と DS (データセグメント) を合わせる
-    ; (Tiny Model的な動作のため)
+    ; DS設定 (Tiny Model)
     mov ax, cs
     mov ds, ax
 
+    ; --- 1. PICのISR (In-Service Register) を読む ---
+    ; OCW3: 0000_1011 (0x0B) -> RR=1, RIS=1 (Read ISR)
+    mov al, 0x0B
+    out PIC_REG0, al
+    in  al, PIC_REG0    ; AL = 現在処理中の割り込みビット (ISR)
+
+    ; --- 2. 要因判定と分岐 ---
+    
+    test al, 01h        ; Bit 0: Timer 0 (System Tick)
+    jnz .handle_timer0
+
+    test al, 02h        ; Bit 1: SCSI
+    jnz .handle_scsi
+
+    test al, 04h        ; Bit 2: Timer 1
+    jnz .handle_timer1
+
+    test al, 08h        ; Bit 3: USART Rx
+    jnz .handle_usart_rx
+
+    test al, 10h        ; Bit 4: USART Tx
+    jnz .handle_usart_tx
+
+    test al, 20h        ; Bit 5: SCU Rx
+    jnz .handle_scu_rx
+
+    test al, 40h        ; Bit 6: SCU Tx
+    jnz .handle_scu_tx
+
+    test al, 80h        ; Bit 7: PPI
+    jnz .handle_ppi
+
+    ; 該当なしの場合は無視
+    jmp .eoi_exit
+
+; --- 各ハンドラ処理 ---
+
+.handle_timer0:
+    ; INTP0: Timer 0 (Tick)
     ; --- 32bit カウンタのインクリメント ---
     inc word [tick_counter_lo]
     jnz .skip_carry
     inc word [tick_counter_hi]
 .skip_carry:
+    jmp .eoi_exit
 
+.handle_scsi:
+    ; INTP1: SCSIC
+    mov si, msg_int_scsi
+    call puts
+    jmp .eoi_exit
+
+.handle_timer1:
+    ; INTP2: ユーザ用タイマー
+    mov si, msg_int_timer1
+    call puts
+    jmp .eoi_exit
+
+.handle_usart_rx:
+    ; INTP3: USART受信準備完了割り込み
+    mov si, msg_int_usart_rx
+    call puts
+    jmp .eoi_exit
+
+.handle_usart_tx:
+    ; INTP4: USART送信完了割り込み
+    mov si, msg_int_usart_tx
+    call puts
+    jmp .eoi_exit
+
+.handle_scu_rx:
+    ; INTP5: SCU受信準備完了割り込み
+    mov si, msg_int_scu_rx
+    call puts
+    jmp .eoi_exit
+
+.handle_scu_tx:
+    ; INTP6: SCU送信完了割り込み
+    mov si, msg_int_scu_tx
+    call puts
+    jmp .eoi_exit
+
+.handle_ppi:
+    ; INTP7: PPI割り込み
+    mov si, msg_int_ppi
+    call puts
+    jmp .eoi_exit
+
+; --- 終了処理 ---
+.eoi_exit:
     ; --- EOI (End of Interrupt) to PIC ---
     mov al, 20h     ; Non-specific EOI
 
@@ -1203,9 +1304,31 @@ _tick_handler:
     mov dx, ICU_REG0 
     out dx, al
 
-    pop dx
-    pop ax
+    pop es
+    pop ds
+    popa
     iret
+
+;--------------------------------------
+; 未定義割り込みベクタ用の簡易トラップ
+;--------------------------------------
+_default_int_unknown_handler:
+    ; 想定外の割り込みが発生したため、
+    ; 画面に "UNKNOWN INT" と出して停止する
+    
+    cli                 ; 多重割り込み禁止
+    pusha
+    push ds
+    push cs
+    pop ds              ; DS = CS
+
+    mov si, msg_unknown_int
+    call puts
+    
+    ; 停止（暴走を防ぐ）
+.halt:
+    hlt
+    jmp .halt
 
 ; =================================================================
 ; Data
@@ -1235,9 +1358,21 @@ msg_cx:   db " CX=", 0
 msg_dx:   db " DX=", 0
 msg_addr: db " Stop at CS:IP = ", 0
 
-; 割り込み標準ハンドラメッセージ
+; ICUデフォルト割り込みハンドラメッセージ
 msg_int_trap: db "** INT ", 0
 msg_detected: db " detected **", 0
+
+; PICディスパッチハンドラメッセージ
+msg_int_scsi:       db "** PIC INTP1 SCSI **", 0x0D, 0x0A, 0
+msg_int_timer1:     db "** PIC INTP2 Timer1 **", 0x0D, 0x0A, 0
+msg_int_usart_rx:   db "** PIC INTP3 USART Rx **", 0x0D, 0x0A, 0
+msg_int_usart_tx:   db "** PIC INTP4 USART Tx **", 0x0D, 0x0A, 0
+msg_int_scu_rx:     db "** PIC INTP5 SCU Rx **", 0x0D, 0x0A, 0
+msg_int_scu_tx:     db "** PIC INTP6 SCU Tx **", 0x0D, 0x0A, 0
+msg_int_ppi:        db "** PIC INTP7 PPI **", 0x0D, 0x0A, 0
+
+; 未定義割り込みハンドラのメッセージ
+msg_unknown_int: db 0x0D, 0x0A, "!!! UNKNOWN INTERRUPT !!!", 0x0D, 0x0A, 0
 
 ; 変数
 dump_seg:   dw  0x0000  ; Dump: セグメント保存用
