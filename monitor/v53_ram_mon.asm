@@ -51,7 +51,7 @@
     org 0
     cpu 186
 
-    ; SCUレジスタ (SCUは1260Hに配置）
+    ; V53 SCU (1260Hに配置）
     %define SCU_DATA    0x01260 ; 送受データ・レジスタ(R:SRB/W:STB)
     %define SCU_SST     0x01261 ; ステータス・レジスタ(R:SST)
     %define SCU_SCM     0x01261 ; コマンドレジスタ(W:SCM)
@@ -60,14 +60,11 @@
     %define TX_READY    00000001b   ; TBRDY                                 
     %define RX_READY    00000010b   ; RBRDY
 
-    ; --- タイマーレジスタ (TCUは1270Hに配置) ---
+    ; V53 TCU (1270Hに配置)
     %define TM0_CNT     0x01270 ; Timer 0 Counter
     %define TM1_CNT     0x01271 ; Timer 1 Counter
     %define TM2_CNT     0x01272 ; Timer 2 Counter
     %define TM_CTL      0x01273 ; Timer Control
-
-    %define DIV_LOW     0x04 ; 分周比 4 (1.2288MHz -> 307.2kHz)
-    %define DIV_HIGH    0x00
 
     ; V53 ICU (1280Hに配置)
     %define ICU_REG0    0x01280
@@ -81,6 +78,11 @@
 
     %define PIC_REG0    0x00c8  ; μPD71059 (PIC)	IRR/ISR/IW1/PCFW/MCW	
     %define PIC_REG1    0x00cA  ; μPD71059 (PIC)	IMR/IW2/IW3/IW4
+
+    %define PPI_PORTA   0x00e0  ; μPD71055 (PPI)	Port A	
+    %define PPI_PORTB   0x00e2  ; μPD71055 (PPI)	Port B	
+    %define PPI_PORTC   0x00e4	; μPD71055 (PPI)	Port C	
+    %define PPI_CTRL    0x00e6  ; μPD71055 (PPI)	Control
 %endif
 
 section .text
@@ -114,10 +116,61 @@ Init_NMI:
     mov  ax, cs          ; 現在のCS
     stosw                ; [0000:000A] = CS
 
-    ; Tick用割り込みベクタテーブル (Vector 27h = V53 INTP7)
-    ; 0x27 * 4 = 9Ch
+    ; ICU割り込みベクタの登録 (0x20 - 0x27)
+    
+    ; Vector 20h (ICU INTP0)
+    mov  di, 0x0080      ; 0x20 * 4 = 80h
+    mov  ax, _isr_stub_20
+    stosw
+    mov  ax, cs
+    stosw
+
+    ; Vector 21h (ICU INTP1)
+    mov  di, 0x0084
+    mov  ax, _isr_stub_21
+    stosw
+    mov  ax, cs
+    stosw
+
+    ; Vector 22h (ICU INTP2)
+    mov  di, 0x0088
+    mov  ax, _isr_stub_22
+    stosw
+    mov  ax, cs
+    stosw
+
+    ; Vector 23h (ICU INTP3)
+    mov  di, 0x008C
+    mov  ax, _isr_stub_23
+    stosw
+    mov  ax, cs
+    stosw
+
+    ; Vector 24h (ICU INTP4)
+    mov  di, 0x0090
+    mov  ax, _isr_stub_24
+    stosw
+    mov  ax, cs
+    stosw
+
+    ; Vector 25h (ICU INTP5)
+    mov  di, 0x0094
+    mov  ax, _isr_stub_25
+    stosw
+    mov  ax, cs
+    stosw
+
+    ; Vector 26h (ICU INTP6)
+    mov  di, 0x0098
+    mov  ax, _isr_stub_26
+    stosw
+    mov  ax, cs
+    stosw
+
+    ; Vector 27h (ICU INTP7 <-- PIC)
+    ; PIC用割り込みベクタテーブル
     mov  di, 0x009c      ; Vector 27h Address offset
-    mov  ax, _tick_handler ; ハンドラのアドレス (IP)
+    mov  ax, _tick_handler ; Tick割り込みハンドラのアドレス (IP)
     stosw                ; [0000:009c] = AX
     mov  ax, cs          ; 現在のCS
     stosw                ; [0000:009e] = CS
@@ -176,25 +229,29 @@ Init_NMI:
     ;------------------------------------------
     ; 4. カウンタ値 (分周比) のロード
     ;------------------------------------------
-    ; Timer 0 (INTP0) 100Hz
+    ; Timer 0 (INTP0)
+    ; 1.2288MHz / 12288 = 100Hz
     mov  dx, TM0_CNT
-    mov  al, 0
+    mov  al, 0x00
     out  dx, al
     mov  al, 0x30
     out  dx, al
 
-    ; Timer 1 (INTP2) 100Hz
+    ; Timer 1 (INTP2)
+    ; 1.2288MHz / 61440 = 20Hz
     mov  dx, TM1_CNT
-    mov  al, 0
+    mov  al, 0x00
     out  dx, al
-    mov  al, 0x30
+    mov  al, 0xF0
     out  dx, al
 
     ; Timer 2 (USART Tx/RxCLK)
+    ; 1.2288MHz / 4 = 307.20KHz
+    ; USART CLOCK 19200bps
     mov  dx, TM2_CNT
-    mov  al, DIV_LOW
+    mov  al, 4
     out  dx, al
-    mov  al, DIV_HIGH
+    mov  al, 0
     out  dx, al
 
     ;------------------------------------------
@@ -272,9 +329,8 @@ Init_NMI:
     mov al, 01h     ; ICW4: 8086 Mode, Normal EOI
     out dx, al
 
-    ; Bit 7 (INTP7) を 0 (許可) にします。
-    in  al, dx
-    and al, 7Fh     ; 0111 1111 (Bit 7をクリア)
+    ; Bit 7 (INTP7) を 0 (許可) にその他は禁止します。
+    mov al, 7Fh     ; 0111 1111
     out dx, al
 
     ;-------------------------------------------
@@ -1053,6 +1109,72 @@ NMI_Handler:
     ; (レジスタはスタックに残ったままになりますが、モニタ再起動でリセットされる前提)
     jmp  start  ; モニタの開始ラベルへ
 
+; ==========================================================
+; Default Interrupt Handler (Trap for unused interrupts)
+; ==========================================================
+
+; --- 共通処理部 (Common Handler) ---
+_default_int_handler:
+    push bp
+    mov  bp, sp
+    pusha               ; 全レジスタ保存 (AX,CX,DX,BX,SP,BP,SI,DI)
+    push ds
+    push es
+
+    ; セグメント設定 (Tiny Model的な動作のためCSをDS/ESにコピー)
+    mov  ax, cs
+    mov  ds, ax
+    mov  es, ax
+
+    ; --- メッセージ表示 ---
+    mov  si, msg_int_trap
+    call puts           ; "** INT "
+
+    ; --- ベクタ番号の表示 ---
+    ; スタック構造:
+    ; [BP+0] Old BP
+    ; [BP+2] Vector Number (スタブでPUSHした値: 16bit)
+    ; [BP+4] Return IP ...
+    
+    mov  ax, [bp+2]     ; ベクタ番号を取得
+    call print_hex_byte ; 表示 (例: 25)
+
+    mov  si, msg_detected
+    call puts           ; " detected **" (改行含む)
+
+    ; --- EOI (End of Interrupt) to PIC, ICU ---
+    mov al, 20h         ; Non-specific EOI
+    out PIC_REG0, al    ; 外部PIC (Slave) の割り込み完了
+    mov dx, ICU_REG0    ; V53内蔵ICU (Master) の割り込み完了
+    out dx, al
+
+    pop  es
+    pop  ds
+    popa
+    pop  bp
+    add  sp, 2          ; スタブでPUSHしたベクタ番号分(2byte)をスタックから捨てる
+    iret
+
+; --- 各ベクタ用スタブ (Entry Points) ---
+; ベクタ番号をスタックに積んで共通処理へジャンプします
+
+_isr_stub_20: push 0x0020       ; ICU INTP0
+              jmp _default_int_handler
+_isr_stub_21: push 0x0021       ; ICU INTP1
+              jmp _default_int_handler
+_isr_stub_22: push 0x0022       ; ICU INTP2
+              jmp _default_int_handler
+_isr_stub_23: push 0x0023       ; ICU INTP3
+              jmp _default_int_handler
+_isr_stub_24: push 0x0024       ; ICU INTP4
+              jmp _default_int_handler
+_isr_stub_25: push 0x0025       ; ICU INTP5
+              jmp _default_int_handler
+_isr_stub_26: push 0x0026       ; ICU INTP6
+              jmp _default_int_handler
+
+; Note: Vector 27h (INTP7) は _tick_handler で使用中なのでここには含めません
+
 ;==========================================================
 ; Tick Handler
 ;==========================================================
@@ -1112,6 +1234,10 @@ msg_bx:   db " BX=", 0
 msg_cx:   db " CX=", 0
 msg_dx:   db " DX=", 0
 msg_addr: db " Stop at CS:IP = ", 0
+
+; 割り込み標準ハンドラメッセージ
+msg_int_trap: db "** INT ", 0
+msg_detected: db " detected **", 0
 
 ; 変数
 dump_seg:   dw  0x0000  ; Dump: セグメント保存用
