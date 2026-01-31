@@ -806,7 +806,7 @@ do_scan:
     jmp monitor_loop
 
 ; ==============================================================
-; Command: Timer (ms)
+; Command: Timer
 ;   T          -> Show current tick counter (32-bit HEX)
 ;   T <val>    -> Wait for <val> ticks (10ms unit)
 ; ==============================================================
@@ -1344,7 +1344,7 @@ msg_unknown:db "Unknown cmd", 0x0D, 0x0A, 0
 msg_in_res: db "Val: ", 0
 msg_done:   db " Done", 0x0D, 0x0A, 0
 msg_bar:    db " | ", 0
-msg_help:   db "Cmds: D <Seg> <Off>, L <Seg>, G <Seg> <Off>, W <Seg> <Off> <Val>, I <Port>, O <Port> <Val>, S <Start_port> <End_port>, T <ms> ?", 0x0D, 0x0A, 0
+msg_help:   db "Cmds: D <Seg> <Off>, L <Seg>, G <Seg> <Off>, W <Seg> <Off> <Val>, I <Port>, O <Port> <Val>, S <Start_port> <End_port>, T <Val> ?", 0x0D, 0x0A, 0
 msg_scan_start: db "Scanning I/O (Press any key to abort)...", 0x0D, 0x0A, 0
 msg_space:      db "  ", 0
 msg_abort:      db "Aborted.", 0x0D, 0x0A, 0

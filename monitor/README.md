@@ -23,6 +23,6 @@ RAM版モニタ([v53_ram_mon.asm](v53_ram_mon.asm))は以下の機能を持ち�
 | Output| 指定したI/Oアドレスに指定した値を出力する | O address value | O 2000 00 | |
 | Scan | 指定したI/Oアドレスの範囲でinp命令を実行し取得できた値が0FFH以外の場合にI/Oアドレスと値を表示する | S start end | S 0000 00FF | |
 | Write | 指定したIOアドレスに値を書き込む | W Segment offset value  | W 3000 0000 44 | |
-| Timer | 16進数で指定した時間(ms)だけ待つ | T ms | T 1770 |パラメタを省略した場合はTickカウンタの値を表示する |
+| Timer | 16進数で指定した時間×10msだけ待つ | T ms | T 1770 |パラメタを省略した場合はTickカウンタの値を表示する |
 | Help | コマンドの一覧表示 | ? | | 
 
