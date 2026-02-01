@@ -1,5 +1,5 @@
 ; =================================================================
-; V53 Monitor System v0.6  2026-01-29
+; V53 Monitor System v0.7 2026-01-31
 ; Target: V53 VME Board & DOSBox-X Simulation
 ; =================================================================
 
@@ -15,7 +15,7 @@
 %define OPSEL   0x0FFFD ; 内蔵ペリフェラル選択レジスタ
 %define OPHA    0x0FFFC ; 内蔵ペリフェラル・リロケーション・レジスタ
 %define DULA    0x0FFFB ; 
-%define IULA    0x0FFFA ; 
+%define IULA    0x0FFFA ; ICUリロケーション・レジスタ
 %define TULA    0x0FFF9 ; TCUリロケーション・レジスタ
 %define SULA    0x0FFF8 ; SCUリロケーション・レジスタ 
 %define WCY4    0x0FFF6 ; プログラマブル・ウェイト・サイクル数設定レジスタ4
@@ -51,7 +51,7 @@
     org 0
     cpu 186
 
-    ; SCUレジスタ (SCUは1260Hに配置）
+    ; V53 SCU (1260Hに配置）
     %define SCU_DATA    0x01260 ; 送受データ・レジスタ(R:SRB/W:STB)
     %define SCU_SST     0x01261 ; ステータス・レジスタ(R:SST)
     %define SCU_SCM     0x01261 ; コマンドレジスタ(W:SCM)
@@ -60,20 +60,29 @@
     %define TX_READY    00000001b   ; TBRDY                                 
     %define RX_READY    00000010b   ; RBRDY
 
-    ; --- タイマーレジスタ (TCUは1270Hに配置) ---
+    ; V53 TCU (1270Hに配置)
     %define TM0_CNT     0x01270 ; Timer 0 Counter
     %define TM1_CNT     0x01271 ; Timer 1 Counter
     %define TM2_CNT     0x01272 ; Timer 2 Counter
     %define TM_CTL      0x01273 ; Timer Control
 
-    %define DIV_LOW     0x04 ; 分周比 4 (1.2288MHz -> 307.2kHz)
-    %define DIV_HIGH    0x00
-
+    ; V53 ICU (1280Hに配置)
+    %define ICU_REG0    0x01280
+    %define ICU_REG1    0x01281
+    
     ;-----------------------------------------
     ; V53 VME Board ペリフェラル
     ;-----------------------------------------
     %define USART_DATA  0x00d8  ; μPD71051 (USART)	Data Register
     %define USART_CMD   0x00da  ; μPD71051 (USART)	Cmd/Status
+
+    %define PIC_REG0    0x00c8  ; μPD71059 (PIC)	IRR/ISR/IW1/PCFW/MCW	
+    %define PIC_REG1    0x00cA  ; μPD71059 (PIC)	IMR/IW2/IW3/IW4
+
+    %define PPI_PORTA   0x00e0  ; μPD71055 (PPI)	Port A	
+    %define PPI_PORTB   0x00e2  ; μPD71055 (PPI)	Port B	
+    %define PPI_PORTC   0x00e4	; μPD71055 (PPI)	Port C	
+    %define PPI_CTRL    0x00e6  ; μPD71055 (PPI)	Control
 %endif
 
 section .text
@@ -83,12 +92,36 @@ start:
     xor ax, ax
     mov es, ax
 %else
-    cli
+    cli             ; 初期化中は割り込み禁止
+
+    ; --- 【重要】スタックの初期化 ---
+    ; 現在のセグメント (CS=2000h) の末尾 (FFFEh) にスタックを移動させます。
+    ; これでコード領域との衝突を回避します。
+    mov ax, cs
+    mov ss, ax
+    mov sp, 0xFFFE
+    ; ------------------------------
 
     ;==============================================
     ; ABORT (NMI) Handler Setup 
     ;==============================================
 Init_NMI:
+    ; ----------------------------------------------------
+    ; 1. 全ベクタ (00h-FFh) をデフォルトハンドラで埋める
+    ;    (予期せぬ割り込みによる暴走を防ぐ安全策)
+    ; ----------------------------------------------------
+    xor ax, ax
+    mov es, ax          ; ES = 0000h (Vector Table)
+    mov di, 0           ; Offset 0
+
+    mov cx, 256         ; 256個のベクタ全てを設定
+.init_loop:
+    mov ax, _default_int_unknown_handler ; 共通トラップハンドラ
+    stosw               ; Offset書き込み
+    mov ax, cs
+    stosw               ; Segment書き込み
+    loop .init_loop
+
     ; 割り込みベクタテーブル (Vector 2 = NMI) の書き換え
     xor  ax, ax
     mov  es, ax          ; ES = 0000h
@@ -98,6 +131,65 @@ Init_NMI:
     stosw                ; [0000:0008] = AX
     mov  ax, cs          ; 現在のCS
     stosw                ; [0000:000A] = CS
+
+    ; ICU割り込みベクタを上書き登録 (0x20 - 0x27)
+    
+    ; Vector 20h (ICU INTP0)
+    mov  di, 0x0080      ; 0x20 * 4 = 80h
+    mov  ax, _isr_stub_20
+    stosw
+    mov  ax, cs
+    stosw
+
+    ; Vector 21h (ICU INTP1)
+    mov  di, 0x0084
+    mov  ax, _isr_stub_21
+    stosw
+    mov  ax, cs
+    stosw
+
+    ; Vector 22h (ICU INTP2)
+    mov  di, 0x0088
+    mov  ax, _isr_stub_22
+    stosw
+    mov  ax, cs
+    stosw
+
+    ; Vector 23h (ICU INTP3)
+    mov  di, 0x008C
+    mov  ax, _isr_stub_23
+    stosw
+    mov  ax, cs
+    stosw
+
+    ; Vector 24h (ICU INTP4)
+    mov  di, 0x0090
+    mov  ax, _isr_stub_24
+    stosw
+    mov  ax, cs
+    stosw
+
+    ; Vector 25h (ICU INTP5)
+    mov  di, 0x0094
+    mov  ax, _isr_stub_25
+    stosw
+    mov  ax, cs
+    stosw
+
+    ; Vector 26h (ICU INTP6)
+    mov  di, 0x0098
+    mov  ax, _isr_stub_26
+    stosw
+    mov  ax, cs
+    stosw
+
+    ; Vector 27h (ICU INTP7 <-- PIC)
+    ; PIC Dispatcher
+    mov  di, 0x009c      ; Vector 27h Address offset
+    mov  ax, _pic_dispatch_handler
+    stosw                ; [0000:009c] = AX
+    mov  ax, cs          ; 現在のCS
+    stosw                ; [0000:009e] = CS
 
     ; ---------------------------------------------
     ; 1. セグメントレジスタ初期化
@@ -153,25 +245,29 @@ Init_NMI:
     ;------------------------------------------
     ; 4. カウンタ値 (分周比) のロード
     ;------------------------------------------
-    ; Timer 0
+    ; Timer 0 (INTP0)
+    ; 1.2288MHz / 12288 = 100Hz
     mov  dx, TM0_CNT
-    mov  al, DIV_LOW
+    mov  al, 0x00
     out  dx, al
-    mov  al, DIV_HIGH
+    mov  al, 0x30
     out  dx, al
 
-    ; Timer 1
+    ; Timer 1 (INTP2)
+    ; 1.2288MHz / 61440 = 20Hz
     mov  dx, TM1_CNT
-    mov  al, DIV_LOW
+    mov  al, 0x00
     out  dx, al
-    mov  al, DIV_HIGH
+    mov  al, 0xF0
     out  dx, al
 
-    ; Timer 2
+    ; Timer 2 (USART Tx/RxCLK)
+    ; 1.2288MHz / 4 = 307.20KHz
+    ; USART CLOCK 19200bps
     mov  dx, TM2_CNT
-    mov  al, DIV_LOW
+    mov  al, 4
     out  dx, al
-    mov  al, DIV_HIGH
+    mov  al, 0
     out  dx, al
 
     ;------------------------------------------
@@ -202,6 +298,62 @@ Init_NMI:
     mul cx              ; wait
     mov al, 0x37        ; rx,tx ready
     out USART_CMD, al
+
+    ;------------------------------------------
+    ; μPD71059 (PIC) 初期化
+    ;------------------------------------------
+    mov al, 13h         ; ICW1: Edge, Single, ICW4 needed
+    out PIC_REG0, al
+
+    mov al, 20h         ; ICW2: Vector Offset = 20h (INT 32)
+    out PIC_REG1, al
+                        ; ICW3 is skipped in Single Mode
+    mov al, 01h         ; ICW4: 8086 Mode, Normal EOI
+    out PIC_REG1, al
+
+    mov al, 0FEh        ; OCW1: Unmask IR0 (Timer) only. (1111 1110)
+    out PIC_REG1, al
+
+    ;------------------------------------------
+    ; ICUの追加設定
+    ;------------------------------------------
+    ; 1. 内蔵周辺機能の有効化 (OPSEL)
+    ;------------------------------------------
+    mov  dx, OPSEL
+    in   al, dx
+    or   al, 00000010b   ; Bit 1 (ICU) をセット
+    out  dx, al
+
+    ;------------------------------------------
+    ; 2. レジスタ配置アドレスの設定 (IULA)
+    ;------------------------------------------
+    mov dx, IULA
+    mov al, 0x80    ; 下位アドレス
+    out dx, al
+
+    ;------------------------------------------
+    ; 3. 割り込みマスクの設定 (Enable INTP7)
+    ;------------------------------------------
+    mov dx, ICU_REG0
+    mov al, 13h     ; ICW1: Edge, Single, ICW4 needed
+    out dx, al
+
+    mov dx, ICU_REG1
+    mov al, 20h     ; ICW2: Vector Offset = 20h (INT 32)
+    out dx, al
+                    ; ICW3 is skipped in Single Mode
+    mov al, 01h     ; ICW4: 8086 Mode, Normal EOI
+    out dx, al
+
+    ; Bit 7 (INTP7) を 0 (許可) にその他は禁止します。
+    mov al, 7Fh     ; 0111 1111
+    out dx, al
+
+    ;-------------------------------------------
+    ; 割り込み許可
+    ;-------------------------------------------
+    sti
+
  %endif
 
     ; 変数初期化 (RAMエリアをクリア)
@@ -259,7 +411,12 @@ monitor_loop:
     je do_scan
     cmp al, 'S'
     je do_scan
-    
+
+    cmp al, 't'     ; Scan Timer wait command
+    je do_timer
+    cmp al, 'T'
+    je do_timer
+
     cmp al, '?'     ; Help
     je cmd_help
 
@@ -649,6 +806,57 @@ do_scan:
     jmp monitor_loop
 
 ; ==============================================================
+; Command: Timer
+;   T          -> Show current tick counter (32-bit HEX)
+;   T <val>    -> Wait for <val> ticks (10ms unit)
+; ==============================================================
+do_timer:
+    call getc_echo      ; コマンド('T')の次の文字を取得
+    cmp al, 0x0D        ; Enterキー(CR)なら表示モードへ
+    je .show_counter
+    cmp al, ' '         ; スペースならWaitモードへ
+    jne error           ; それ以外はエラー
+
+    ; --- Wait Mode (引数あり: T 0064 等) ---
+    call get_hex_word   ; AX = 待ち時間 (0064h = 1秒)
+
+    ; 開始時刻を保存 (Start Time)
+    mov bx, [tick_counter_lo]
+
+.wait_loop:
+    ; 1. 現在時刻を取得
+    mov cx, [tick_counter_lo]
+    
+    ; 2. 経過時間を計算 (Current - Start)
+    ; オーバーフローしても、この引き算の結果は正しい経過時間になる
+    sub cx, bx          
+    
+    ; 3. 経過時間 < 待ち時間 ならループ継続
+    cmp cx, ax
+    jb .wait_loop       ; Jump if Below (unsigned compare)
+
+    ; 指定時間経過した
+    mov si, msg_done
+    call puts
+    jmp monitor_loop
+
+.show_counter:
+    ; --- Show Counter Mode (引数なし: Tのみ) ---
+    call putc_crlf
+    
+    mov si, msg_tick    ; "Tick: "
+    call puts
+
+    ; 32bitカウンタを [High][Low] の順で表示
+    mov ax, [tick_counter_hi]
+    call print_hex_word
+    mov ax, [tick_counter_lo]
+    call print_hex_word
+    
+    call putc_crlf
+    jmp monitor_loop
+
+; ==============================================================
 ; Command: Help
 ; ==============================================================
 cmd_help:
@@ -917,10 +1125,215 @@ NMI_Handler:
     ; (レジスタはスタックに残ったままになりますが、モニタ再起動でリセットされる前提)
     jmp  start  ; モニタの開始ラベルへ
 
+; ==========================================================
+; Default Interrupt Handler (Trap for unused interrupts)
+; ==========================================================
+
+; --- 共通処理部 (Common Handler) ---
+_default_int_handler:
+    push bp
+    mov  bp, sp
+    pusha               ; 全レジスタ保存 (AX,CX,DX,BX,SP,BP,SI,DI)
+    push ds
+    push es
+
+    ; セグメント設定 (Tiny Model的な動作のためCSをDS/ESにコピー)
+    mov  ax, cs
+    mov  ds, ax
+    mov  es, ax
+
+    ; --- メッセージ表示 ---
+    mov  si, msg_int_trap
+    call puts           ; "** INT "
+
+    ; --- ベクタ番号の表示 ---
+    ; スタック構造:
+    ; [BP+0] Old BP
+    ; [BP+2] Vector Number (スタブでPUSHした値: 16bit)
+    ; [BP+4] Return IP ...
+    
+    mov  ax, [bp+2]     ; ベクタ番号を取得
+    call print_hex_byte ; 表示 (例: 25)
+
+    mov  si, msg_detected
+    call puts           ; " detected **" (改行含む)
+
+    ; --- EOI (End of Interrupt) to PIC, ICU ---
+    mov al, 20h         ; Non-specific EOI
+    out PIC_REG0, al    ; 外部PIC (Slave) の割り込み完了
+    mov dx, ICU_REG0    ; V53内蔵ICU (Master) の割り込み完了
+    out dx, al
+
+    pop  es
+    pop  ds
+    popa
+    pop  bp
+    add  sp, 2          ; スタブでPUSHしたベクタ番号分(2byte)をスタックから捨てる
+    iret
+
+; --- 各ベクタ用スタブ (Entry Points) ---
+; ベクタ番号をスタックに積んで共通処理へジャンプします
+
+_isr_stub_20: push 0x0020       ; ICU INTP0
+              jmp _default_int_handler
+_isr_stub_21: push 0x0021       ; ICU INTP1
+              jmp _default_int_handler
+_isr_stub_22: push 0x0022       ; ICU INTP2
+              jmp _default_int_handler
+_isr_stub_23: push 0x0023       ; ICU INTP3
+              jmp _default_int_handler
+_isr_stub_24: push 0x0024       ; ICU INTP4
+              jmp _default_int_handler
+_isr_stub_25: push 0x0025       ; ICU INTP5
+              jmp _default_int_handler
+_isr_stub_26: push 0x0026       ; ICU INTP6
+              jmp _default_int_handler
+
+; Note: Vector 27h (INTP7) は _pic_dispatch_handler で使用中なのでここには含めません
+
+; ==========================================================
+; PIC Dispatch Handler (Vector 27h)
+; Handles: Timer, Serial, SCSI, PPI via PIC uPD71059
+; ==========================================================
+_pic_dispatch_handler:
+    pusha
+    push ds
+    push es
+
+    ; DS設定 (Tiny Model)
+    mov ax, cs
+    mov ds, ax
+
+    ; --- 1. PICのISR (In-Service Register) を読む ---
+    ; OCW3: 0000_1011 (0x0B) -> RR=1, RIS=1 (Read ISR)
+    mov al, 0x0B
+    out PIC_REG0, al
+    in  al, PIC_REG0    ; AL = 現在処理中の割り込みビット (ISR)
+
+    ; --- 2. 要因判定と分岐 ---
+    
+    test al, 01h        ; Bit 0: Timer 0 (System Tick)
+    jnz .handle_timer0
+
+    test al, 02h        ; Bit 1: SCSI
+    jnz .handle_scsi
+
+    test al, 04h        ; Bit 2: Timer 1
+    jnz .handle_timer1
+
+    test al, 08h        ; Bit 3: USART Rx
+    jnz .handle_usart_rx
+
+    test al, 10h        ; Bit 4: USART Tx
+    jnz .handle_usart_tx
+
+    test al, 20h        ; Bit 5: SCU Rx
+    jnz .handle_scu_rx
+
+    test al, 40h        ; Bit 6: SCU Tx
+    jnz .handle_scu_tx
+
+    test al, 80h        ; Bit 7: PPI
+    jnz .handle_ppi
+
+    ; 該当なしの場合は無視
+    jmp .eoi_exit
+
+; --- 各ハンドラ処理 ---
+
+.handle_timer0:
+    ; INTP0: Timer 0 (Tick)
+    ; --- 32bit カウンタのインクリメント ---
+    inc word [tick_counter_lo]
+    jnz .skip_carry
+    inc word [tick_counter_hi]
+.skip_carry:
+    jmp .eoi_exit
+
+.handle_scsi:
+    ; INTP1: SCSIC
+    mov si, msg_int_scsi
+    call puts
+    jmp .eoi_exit
+
+.handle_timer1:
+    ; INTP2: ユーザ用タイマー
+    mov si, msg_int_timer1
+    call puts
+    jmp .eoi_exit
+
+.handle_usart_rx:
+    ; INTP3: USART受信準備完了割り込み
+    mov si, msg_int_usart_rx
+    call puts
+    jmp .eoi_exit
+
+.handle_usart_tx:
+    ; INTP4: USART送信完了割り込み
+    mov si, msg_int_usart_tx
+    call puts
+    jmp .eoi_exit
+
+.handle_scu_rx:
+    ; INTP5: SCU受信準備完了割り込み
+    mov si, msg_int_scu_rx
+    call puts
+    jmp .eoi_exit
+
+.handle_scu_tx:
+    ; INTP6: SCU送信完了割り込み
+    mov si, msg_int_scu_tx
+    call puts
+    jmp .eoi_exit
+
+.handle_ppi:
+    ; INTP7: PPI割り込み
+    mov si, msg_int_ppi
+    call puts
+    jmp .eoi_exit
+
+; --- 終了処理 ---
+.eoi_exit:
+    ; --- EOI (End of Interrupt) to PIC ---
+    mov al, 20h     ; Non-specific EOI
+
+    ; 外部PIC (Slave) の割り込み完了
+    out PIC_REG0, al
+
+    ; V53内蔵ICU (Master) の割り込み完了
+    mov dx, ICU_REG0 
+    out dx, al
+
+    pop es
+    pop ds
+    popa
+    iret
+
+;--------------------------------------
+; 未定義割り込みベクタ用の簡易トラップ
+;--------------------------------------
+_default_int_unknown_handler:
+    ; 想定外の割り込みが発生したため、
+    ; 画面に "UNKNOWN INT" と出して停止する
+    
+    cli                 ; 多重割り込み禁止
+    pusha
+    push ds
+    push cs
+    pop ds              ; DS = CS
+
+    mov si, msg_unknown_int
+    call puts
+    
+    ; 停止（暴走を防ぐ）
+.halt:
+    hlt
+    jmp .halt
+
 ; =================================================================
 ; Data
 ; =================================================================
-msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.6 2026-01-29  **",0x0D,0x0A,0
+msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.7 2026-01-31  **",0x0D,0x0A,0
 msg_load: db "Load HEX...",0
 msg_ok:   db "OK",0
 msg_go:   db "Go!",0
@@ -929,12 +1342,13 @@ msg_prompt: db "> ", 0
 msg_error:  db "Error", 0x0D, 0x0A, 0
 msg_unknown:db "Unknown cmd", 0x0D, 0x0A, 0
 msg_in_res: db "Val: ", 0
-msg_done:   db "Done", 0x0D, 0x0A, 0
+msg_done:   db " Done", 0x0D, 0x0A, 0
 msg_bar:    db " | ", 0
-msg_help:   db "Cmds: D <Seg> <Off>, L <Seg>, G <Seg> <Off>, W <Seg> <Off> <Val>, I <Port>, O <Port> <Val>, S <Start_port> <End_port>, ?", 0x0D, 0x0A, 0
+msg_help:   db "Cmds: D <Seg> <Off>, L <Seg>, G <Seg> <Off>, W <Seg> <Off> <Val>, I <Port>, O <Port> <Val>, S <Start_port> <End_port>, T <Val> ?", 0x0D, 0x0A, 0
 msg_scan_start: db "Scanning I/O (Press any key to abort)...", 0x0D, 0x0A, 0
 msg_space:      db "  ", 0
 msg_abort:      db "Aborted.", 0x0D, 0x0A, 0
+msg_tick:   db "Tick: ", 0
 
 ; --- NMIハンドラメッセージ定義 ---
 msg_nmi:  db 0x0D, 0x0A, "*** ABORT (NMI) ***", 0x0D, 0x0A, 0
@@ -944,7 +1358,25 @@ msg_cx:   db " CX=", 0
 msg_dx:   db " DX=", 0
 msg_addr: db " Stop at CS:IP = ", 0
 
+; ICUデフォルト割り込みハンドラメッセージ
+msg_int_trap: db "** INT ", 0
+msg_detected: db " detected **", 0
+
+; PICディスパッチハンドラメッセージ
+msg_int_scsi:       db "** PIC INTP1 SCSI **", 0x0D, 0x0A, 0
+msg_int_timer1:     db "** PIC INTP2 Timer1 **", 0x0D, 0x0A, 0
+msg_int_usart_rx:   db "** PIC INTP3 USART Rx **", 0x0D, 0x0A, 0
+msg_int_usart_tx:   db "** PIC INTP4 USART Tx **", 0x0D, 0x0A, 0
+msg_int_scu_rx:     db "** PIC INTP5 SCU Rx **", 0x0D, 0x0A, 0
+msg_int_scu_tx:     db "** PIC INTP6 SCU Tx **", 0x0D, 0x0A, 0
+msg_int_ppi:        db "** PIC INTP7 PPI **", 0x0D, 0x0A, 0
+
+; 未定義割り込みハンドラのメッセージ
+msg_unknown_int: db 0x0D, 0x0A, "!!! UNKNOWN INTERRUPT !!!", 0x0D, 0x0A, 0
+
 ; 変数
 dump_seg:   dw  0x0000  ; Dump: セグメント保存用
 dump_off:   dw  0x0000  ; Dump: オフセット保存用
 load_seg:   dw  0x0000  ; Load: ターゲットセグメント
+tick_counter_lo: dw 0x0000  ; Tick: 下位16bit
+tick_counter_hi: dw 0x0000  ; Tick: 上位16bit
