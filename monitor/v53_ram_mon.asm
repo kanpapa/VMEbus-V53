@@ -1,5 +1,5 @@
 ; =================================================================
-; V53 Monitor System v0.7 2026-01-31
+; V53 Monitor System v0.8 2026-02-01
 ; Target: V53 VME Board & DOSBox-X Simulation
 ; =================================================================
 
@@ -51,25 +51,46 @@
     org 0
     cpu 186
 
+    ; 旧アドレス
     ; V53 SCU (1260Hに配置）
-    %define SCU_DATA    0x01260 ; 送受データ・レジスタ(R:SRB/W:STB)
-    %define SCU_SST     0x01261 ; ステータス・レジスタ(R:SST)
-    %define SCU_SCM     0x01261 ; コマンドレジスタ(W:SCM)
-    %define SCU_SMD     0x01262 ; シリアルモード設定(W:SMD)
-    %define SCU_SIMK    0x01263 ; シリアル割り込みマスクレジスタ(R/W:SIMK)
+    ;%define SCU_DATA    0x01260 ; 送受データ・レジスタ(R:SRB/W:STB)
+    ;%define SCU_SST     0x01261 ; ステータス・レジスタ(R:SST)
+    ;%define SCU_SCM     0x01261 ; コマンドレジスタ(W:SCM)
+    ;%define SCU_SMD     0x01262 ; シリアルモード設定(W:SMD)
+    ;%define SCU_SIMK    0x01263 ; シリアル割り込みマスクレジスタ(R/W:SIMK)
+    ;%define TX_READY    00000001b   ; TBRDY                                 
+    ;%define RX_READY    00000010b   ; RBRDY
+
+    ; V53 TCU (1270Hに配置)
+    ;%define TM0_CNT     0x01270 ; Timer 0 Counter
+    ;%define TM1_CNT     0x01271 ; Timer 1 Counter
+    ;%define TM2_CNT     0x01272 ; Timer 2 Counter
+    ;%define TM_CTL      0x01273 ; Timer Control
+
+    ; V53 ICU (1280Hに配置)
+    ;%define ICU_REG0    0x01280
+    ;%define ICU_REG1    0x01281
+
+    ; 新アドレス
+    ; V53 SCU (2060Hに配置）
+    %define SCU_DATA    0x02060 ; 送受データ・レジスタ(R:SRB/W:STB)
+    %define SCU_SST     0x02061 ; ステータス・レジスタ(R:SST)
+    %define SCU_SCM     0x02061 ; コマンドレジスタ(W:SCM)
+    %define SCU_SMD     0x02062 ; シリアルモード設定(W:SMD)
+    %define SCU_SIMK    0x02063 ; シリアル割り込みマスクレジスタ(R/W:SIMK)
     %define TX_READY    00000001b   ; TBRDY                                 
     %define RX_READY    00000010b   ; RBRDY
 
-    ; V53 TCU (1270Hに配置)
-    %define TM0_CNT     0x01270 ; Timer 0 Counter
-    %define TM1_CNT     0x01271 ; Timer 1 Counter
-    %define TM2_CNT     0x01272 ; Timer 2 Counter
-    %define TM_CTL      0x01273 ; Timer Control
+    ; V53 TCU (2070Hに配置)
+    %define TM0_CNT     0x02070 ; Timer 0 Counter
+    %define TM1_CNT     0x02071 ; Timer 1 Counter
+    %define TM2_CNT     0x02072 ; Timer 2 Counter
+    %define TM_CTL      0x02073 ; Timer Control
 
-    ; V53 ICU (1280Hに配置)
-    %define ICU_REG0    0x01280
-    %define ICU_REG1    0x01281
-    
+    ; V53 ICU (2080Hに配置)
+    %define ICU_REG0    0x02080
+    %define ICU_REG1    0x02081
+
     ;-----------------------------------------
     ; V53 VME Board ペリフェラル
     ;-----------------------------------------
@@ -200,6 +221,13 @@ Init_NMI:
     push cs
     pop es
     ; スタックは簡易モニタのものをそのまま使う
+
+    ;------------------------------------------
+    ; V53 内蔵ペリフェラルのIOアドレスを再設定
+    ;------------------------------------------
+    mov  dx, OPHA ; 内蔵ペリフェラル・リロケーション・レジスタ
+    mov  al, 0x20 ; 0x20xxに配置
+    out  dx, al
 
     ;------------------------------------------
     ; TCUの追加設定
@@ -1333,7 +1361,7 @@ _default_int_unknown_handler:
 ; =================================================================
 ; Data
 ; =================================================================
-msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.7 2026-01-31  **",0x0D,0x0A,0
+msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.8 2026-02-01  **",0x0D,0x0A,0
 msg_load: db "Load HEX...",0
 msg_ok:   db "OK",0
 msg_go:   db "Go!",0
