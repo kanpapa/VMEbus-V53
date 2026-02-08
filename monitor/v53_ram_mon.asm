@@ -1,5 +1,5 @@
 ; =================================================================
-; V53 Monitor System v0.8 2026-02-01
+; V53 Monitor System v0.9 2026-02-07
 ; Target: V53 VME Board & DOSBox-X Simulation
 ; =================================================================
 
@@ -143,15 +143,46 @@ Init_NMI:
     stosw               ; Segment書き込み
     loop .init_loop
 
-    ; 割り込みベクタテーブル (Vector 2 = NMI) の書き換え
     xor  ax, ax
     mov  es, ax          ; ES = 0000h
     
+    ; 専用割り込みベクタを上書き登録 (0 - 5)
+    mov  di, 0x0000      ; 0x0 * 4 = 0h
+    mov  ax, _isr_stub_0
+    stosw
+    mov  ax, cs
+    stosw
+
+    mov  di, 0x0004      ; 0x1 * 4 = 4h
+    mov  ax, _isr_stub_1
+    stosw
+    mov  ax, cs
+    stosw
+
+    ; 割り込みベクタテーブル (Vector 2 = NMI) の書き換え
     mov  di, 0x0008      ; Vector 2 Address offset
     mov  ax, NMI_Handler ; ハンドラのアドレス (IP)
     stosw                ; [0000:0008] = AX
     mov  ax, cs          ; 現在のCS
     stosw                ; [0000:000A] = CS
+
+    mov  di, 0x000c      ; 0x3 * 4 = 0ch
+    mov  ax, _isr_stub_3
+    stosw
+    mov  ax, cs
+    stosw
+
+    mov  di, 0x0010      ; 0x4 * 4 = 10h
+    mov  ax, _isr_stub_4
+    stosw
+    mov  ax, cs
+    stosw
+
+    mov  di, 0x0014      ; 0x5 * 4 = 14h
+    mov  ax, _isr_stub_5
+    stosw
+    mov  ax, cs
+    stosw
 
     ; ICU割り込みベクタを上書き登録 (0x20 - 0x27)
     
@@ -1159,16 +1190,19 @@ NMI_Handler:
 
 ; --- 共通処理部 (Common Handler) ---
 _default_int_handler:
+    ; 1. 全レジスタを退避 (V53は80186互換なのでPUSHAが使えます)
     push bp
-    mov  bp, sp
-    pusha               ; 全レジスタ保存 (AX,CX,DX,BX,SP,BP,SI,DI)
+    pusha               ; DI, SI, BP, SP, BX, DX, CX, AX の順でPush
     push ds
     push es
 
-    ; セグメント設定 (Tiny Model的な動作のためCSをDS/ESにコピー)
+    ; 2. セグメントをモニタ用に設定 (表示ルーチンを使うため)
     mov  ax, cs
     mov  ds, ax
     mov  es, ax
+
+    ; 3. スタックフレームへのポインタ設定
+    mov  bp, sp
 
     ; --- メッセージ表示 ---
     mov  si, msg_int_trap
@@ -1186,6 +1220,63 @@ _default_int_handler:
     mov  si, msg_detected
     call puts           ; " detected **" (改行含む)
 
+; 3. レジスタ表示 (スタックから読み出して表示)
+    ; Stack Layout after pushes:
+    ; BP+0: ES
+    ; BP+2: DS
+    ; BP+4: DI
+    ; BP+6: SI
+    ; BP+8: BP (Old)
+    ; BP+10: SP (Original)
+    ; BP+12: BX
+    ; BP+14: DX
+    ; BP+16: CX
+    ; BP+18: AX
+    ; BP+20: IP (Return Addr)
+    ; BP+22: CS (Return Addr)
+    ; BP+24: Flags
+    
+    ; AX
+    mov  si, msg_ax
+    call puts
+    mov  ax, [bp+18]        ; PUSHAで保存されたAX
+    call print_hex_word     ; 4桁HEX表示ルーチン
+
+    ; BX
+    mov  si, msg_bx
+    call puts
+    mov  ax, [bp+12]
+    call print_hex_word
+
+    ; CX
+    mov  si, msg_cx
+    call puts
+    mov  ax, [bp+16]
+    call print_hex_word
+
+    ; DX
+    mov  si, msg_dx
+    call puts
+    mov  ax, [bp+14]
+    call print_hex_word
+
+    call putc_crlf
+
+    ; --- 中断地点 (CS:IP) の表示 ---
+    ; PUSHA(16byte) + DS(2) + ES(2) = 20byte
+    ; その上が割り込み発生時の IP, CS, Flags です
+    
+    mov  si, msg_addr
+    call puts           ; " Stop at "
+    mov  ax, [bp+22]    ; Stack上の CS
+    call print_hex_word
+    mov  al, ':'
+    call putc
+    mov  ax, [bp+20]    ; Stack上の IP
+    call print_hex_word
+
+    call putc_crlf
+
     ; --- EOI (End of Interrupt) to PIC, ICU ---
     mov al, 20h         ; Non-specific EOI
     out PIC_REG0, al    ; 外部PIC (Slave) の割り込み完了
@@ -1202,19 +1293,31 @@ _default_int_handler:
 ; --- 各ベクタ用スタブ (Entry Points) ---
 ; ベクタ番号をスタックに積んで共通処理へジャンプします
 
-_isr_stub_20: push 0x0020       ; ICU INTP0
+_isr_stub_0:  push 0x0          ; 0: Division by zero
               jmp _default_int_handler
-_isr_stub_21: push 0x0021       ; ICU INTP1
+_isr_stub_1:  push 0x1          ; 1: Break flag
               jmp _default_int_handler
-_isr_stub_22: push 0x0022       ; ICU INTP2
+                                ; 2: NMI
+_isr_stub_3:  push 0x3          ; 3: BRK3
               jmp _default_int_handler
-_isr_stub_23: push 0x0023       ; ICU INTP3
+_isr_stub_4:  push 0x4          ; 4: BRKV
               jmp _default_int_handler
-_isr_stub_24: push 0x0024       ; ICU INTP4
+_isr_stub_5:  push 0x5          ; 5: CHKIND
               jmp _default_int_handler
-_isr_stub_25: push 0x0025       ; ICU INTP5
+
+_isr_stub_20: push 0x0020       ; 32: ICU INTP0
               jmp _default_int_handler
-_isr_stub_26: push 0x0026       ; ICU INTP6
+_isr_stub_21: push 0x0021       ; 33: ICU INTP1
+              jmp _default_int_handler
+_isr_stub_22: push 0x0022       ; 34: ICU INTP2
+              jmp _default_int_handler
+_isr_stub_23: push 0x0023       ; 35: ICU INTP3
+              jmp _default_int_handler
+_isr_stub_24: push 0x0024       ; 36: ICU INTP4
+              jmp _default_int_handler
+_isr_stub_25: push 0x0025       ; 37: ICU INTP5
+              jmp _default_int_handler
+_isr_stub_26: push 0x0026       ; 38: ICU INTP6
               jmp _default_int_handler
 
 ; Note: Vector 27h (INTP7) は _pic_dispatch_handler で使用中なのでここには含めません
@@ -1343,25 +1446,95 @@ _pic_dispatch_handler:
 _default_int_unknown_handler:
     ; 想定外の割り込みが発生したため、
     ; 画面に "UNKNOWN INT" と出して停止する
-    
     cli                 ; 多重割り込み禁止
-    pusha
+
+    ; 1. 全レジスタを退避 (V53は80186互換なのでPUSHAが使えます)
+    pusha               ; DI, SI, BP, SP, BX, DX, CX, AX の順でPush
     push ds
-    push cs
-    pop ds              ; DS = CS
+    push es
+
+    ; 2. セグメントをモニタ用に設定 (表示ルーチンを使うため)
+    mov  ax, cs
+    mov  ds, ax
+    mov  es, ax
+
+    ; 3. スタックフレームへのポインタ設定
+    mov  bp, sp
 
     mov si, msg_unknown_int
     call puts
+
+    ; 3. レジスタ表示 (スタックから読み出して表示)
+    ; Stack Layout after pushes:
+    ; BP+0: ES
+    ; BP+2: DS
+    ; BP+4: DI
+    ; BP+6: SI
+    ; BP+8: BP (Old)
+    ; BP+10: SP (Original)
+    ; BP+12: BX
+    ; BP+14: DX
+    ; BP+16: CX
+    ; BP+18: AX
+    ; BP+20: IP (Return Addr)
+    ; BP+22: CS (Return Addr)
+    ; BP+24: Flags
     
+    ; AX
+    mov  si, msg_ax
+    call puts
+    mov  ax, [bp+18]        ; PUSHAで保存されたAX
+    call print_hex_word     ; 4桁HEX表示ルーチン
+
+    ; BX
+    mov  si, msg_bx
+    call puts
+    mov  ax, [bp+12]
+    call print_hex_word
+
+    ; CX
+    mov  si, msg_cx
+    call puts
+    mov  ax, [bp+16]
+    call print_hex_word
+
+    ; DX
+    mov  si, msg_dx
+    call puts
+    mov  ax, [bp+14]
+    call print_hex_word
+
+    call putc_crlf
+
+    ; --- 中断地点 (CS:IP) の表示 ---
+    ; PUSHA(16byte) + DS(2) + ES(2) = 20byte
+    ; その上が割り込み発生時の IP, CS, Flags です
+    
+    mov  si, msg_addr
+    call puts           ; " Stop at "
+    mov  ax, [bp+22]    ; Stack上の CS
+    call print_hex_word
+    mov  al, ':'
+    call putc
+    mov  ax, [bp+20]    ; Stack上の IP
+    call print_hex_word
+
+    call putc_crlf
+
+    ; 4. 復帰処理
+    ; ここでモニタのコマンド待ちへ強制ジャンプします
+    ; (レジスタはスタックに残ったままになりますが、モニタ再起動でリセットされる前提)
+    jmp  start  ; モニタの開始ラベルへ
+
     ; 停止（暴走を防ぐ）
-.halt:
-    hlt
-    jmp .halt
+;.halt:
+;    hlt
+;    jmp .halt
 
 ; =================================================================
 ; Data
 ; =================================================================
-msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.8 2026-02-01  **",0x0D,0x0A,0
+msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.9 2026-02-07  **",0x0D,0x0A,0
 msg_load: db "Load HEX...",0
 msg_ok:   db "OK",0
 msg_go:   db "Go!",0
@@ -1386,7 +1559,7 @@ msg_cx:   db " CX=", 0
 msg_dx:   db " DX=", 0
 msg_addr: db " Stop at CS:IP = ", 0
 
-; ICUデフォルト割り込みハンドラメッセージ
+; デフォルト割り込みハンドラメッセージ
 msg_int_trap: db "** INT ", 0
 msg_detected: db " detected **", 0
 
