@@ -1,5 +1,5 @@
 ; =================================================================
-; V53 Monitor System v0.9 2026-02-07
+; V53 Monitor System v0.10 2026-02-15
 ; Target: V53 VME Board & DOSBox-X Simulation
 ; =================================================================
 
@@ -615,6 +615,14 @@ do_load:
     call get_hex_byte   ; 1バイト読み取り
     mov [es:bx], al     ; ターゲット(ES)へ書き込み
     inc bx              ; 次のアドレスにする
+    ; --- 追加: 64KBの境界チェック ---
+    jnz .loop_next      ; bxが0にならなければそのまま
+    mov ax, es          ; bxが0(一周)したら
+    add ax, 0x1000      ; セグメントを64KB分(0x1000)進める
+    mov es, ax
+    ; -----------------------------
+
+.loop_next:
     loop .data_loop     ; データ長分繰り返す
     
 .read_chk:
@@ -1534,7 +1542,7 @@ _default_int_unknown_handler:
 ; =================================================================
 ; Data
 ; =================================================================
-msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.9 2026-02-07  **",0x0D,0x0A,0
+msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.10 2026-02-15  **",0x0D,0x0A,0
 msg_load: db "Load HEX...",0
 msg_ok:   db "OK",0
 msg_go:   db "Go!",0

@@ -1,5 +1,5 @@
      1                                  ; =================================================================
-     2                                  ; V53 Monitor System v0.9 2026-02-07
+     2                                  ; V53 Monitor System v0.10 2026-02-15
      3                                  ; Target: V53 VME Board & DOSBox-X Simulation
      4                                  ; =================================================================
      5                                  
@@ -137,7 +137,7 @@
    137                                  
    138 0000000F B90001                      mov cx, 256         ; 256個のベクタ全てを設定
    139                                  .init_loop:
-   140 00000012 B8[9606]                    mov ax, _default_int_unknown_handler ; 共通トラップハンドラ
+   140 00000012 B8[9F06]                    mov ax, _default_int_unknown_handler ; 共通トラップハンドラ
    141 00000015 AB                          stosw               ; Offset書き込み
    142 00000016 8CC8                        mov ax, cs
    143 00000018 AB                          stosw               ; Segment書き込み
@@ -148,38 +148,38 @@
    148                                      
    149                                      ; 専用割り込みベクタを上書き登録 (0 - 5)
    150 0000001F BF0000                      mov  di, 0x0000      ; 0x0 * 4 = 0h
-   151 00000022 B8[DC05]                    mov  ax, _isr_stub_0
+   151 00000022 B8[E505]                    mov  ax, _isr_stub_0
    152 00000025 AB                          stosw
    153 00000026 8CC8                        mov  ax, cs
    154 00000028 AB                          stosw
    155                                  
    156 00000029 BF0400                      mov  di, 0x0004      ; 0x1 * 4 = 4h
-   157 0000002C B8[E005]                    mov  ax, _isr_stub_1
+   157 0000002C B8[E905]                    mov  ax, _isr_stub_1
    158 0000002F AB                          stosw
    159 00000030 8CC8                        mov  ax, cs
    160 00000032 AB                          stosw
    161                                  
    162                                      ; 割り込みベクタテーブル (Vector 2 = NMI) の書き換え
    163 00000033 BF0800                      mov  di, 0x0008      ; Vector 2 Address offset
-   164 00000036 B8[0005]                    mov  ax, NMI_Handler ; ハンドラのアドレス (IP)
+   164 00000036 B8[0905]                    mov  ax, NMI_Handler ; ハンドラのアドレス (IP)
    165 00000039 AB                          stosw                ; [0000:0008] = AX
    166 0000003A 8CC8                        mov  ax, cs          ; 現在のCS
    167 0000003C AB                          stosw                ; [0000:000A] = CS
    168                                  
    169 0000003D BF0C00                      mov  di, 0x000c      ; 0x3 * 4 = 0ch
-   170 00000040 B8[E505]                    mov  ax, _isr_stub_3
+   170 00000040 B8[EE05]                    mov  ax, _isr_stub_3
    171 00000043 AB                          stosw
    172 00000044 8CC8                        mov  ax, cs
    173 00000046 AB                          stosw
    174                                  
    175 00000047 BF1000                      mov  di, 0x0010      ; 0x4 * 4 = 10h
-   176 0000004A B8[EA05]                    mov  ax, _isr_stub_4
+   176 0000004A B8[F305]                    mov  ax, _isr_stub_4
    177 0000004D AB                          stosw
    178 0000004E 8CC8                        mov  ax, cs
    179 00000050 AB                          stosw
    180                                  
    181 00000051 BF1400                      mov  di, 0x0014      ; 0x5 * 4 = 14h
-   182 00000054 B8[EF05]                    mov  ax, _isr_stub_5
+   182 00000054 B8[F805]                    mov  ax, _isr_stub_5
    183 00000057 AB                          stosw
    184 00000058 8CC8                        mov  ax, cs
    185 0000005A AB                          stosw
@@ -188,49 +188,49 @@
    188                                      
    189                                      ; Vector 20h (ICU INTP0)
    190 0000005B BF8000                      mov  di, 0x0080      ; 0x20 * 4 = 80h
-   191 0000005E B8[F405]                    mov  ax, _isr_stub_20
+   191 0000005E B8[FD05]                    mov  ax, _isr_stub_20
    192 00000061 AB                          stosw
    193 00000062 8CC8                        mov  ax, cs
    194 00000064 AB                          stosw
    195                                  
    196                                      ; Vector 21h (ICU INTP1)
    197 00000065 BF8400                      mov  di, 0x0084
-   198 00000068 B8[F905]                    mov  ax, _isr_stub_21
+   198 00000068 B8[0206]                    mov  ax, _isr_stub_21
    199 0000006B AB                          stosw
    200 0000006C 8CC8                        mov  ax, cs
    201 0000006E AB                          stosw
    202                                  
    203                                      ; Vector 22h (ICU INTP2)
    204 0000006F BF8800                      mov  di, 0x0088
-   205 00000072 B8[FE05]                    mov  ax, _isr_stub_22
+   205 00000072 B8[0706]                    mov  ax, _isr_stub_22
    206 00000075 AB                          stosw
    207 00000076 8CC8                        mov  ax, cs
    208 00000078 AB                          stosw
    209                                  
    210                                      ; Vector 23h (ICU INTP3)
    211 00000079 BF8C00                      mov  di, 0x008C
-   212 0000007C B8[0306]                    mov  ax, _isr_stub_23
+   212 0000007C B8[0C06]                    mov  ax, _isr_stub_23
    213 0000007F AB                          stosw
    214 00000080 8CC8                        mov  ax, cs
    215 00000082 AB                          stosw
    216                                  
    217                                      ; Vector 24h (ICU INTP4)
    218 00000083 BF9000                      mov  di, 0x0090
-   219 00000086 B8[0806]                    mov  ax, _isr_stub_24
+   219 00000086 B8[1106]                    mov  ax, _isr_stub_24
    220 00000089 AB                          stosw
    221 0000008A 8CC8                        mov  ax, cs
    222 0000008C AB                          stosw
    223                                  
    224                                      ; Vector 25h (ICU INTP5)
    225 0000008D BF9400                      mov  di, 0x0094
-   226 00000090 B8[0D06]                    mov  ax, _isr_stub_25
+   226 00000090 B8[1606]                    mov  ax, _isr_stub_25
    227 00000093 AB                          stosw
    228 00000094 8CC8                        mov  ax, cs
    229 00000096 AB                          stosw
    230                                  
    231                                      ; Vector 26h (ICU INTP6)
    232 00000097 BF9800                      mov  di, 0x0098
-   233 0000009A B8[1206]                    mov  ax, _isr_stub_26
+   233 0000009A B8[1B06]                    mov  ax, _isr_stub_26
    234 0000009D AB                          stosw
    235 0000009E 8CC8                        mov  ax, cs
    236 000000A0 AB                          stosw
@@ -238,7 +238,7 @@
    238                                      ; Vector 27h (ICU INTP7 <-- PIC)
    239                                      ; PIC Dispatcher
    240 000000A1 BF9C00                      mov  di, 0x009c      ; Vector 27h Address offset
-   241 000000A4 B8[1706]                    mov  ax, _pic_dispatch_handler
+   241 000000A4 B8[2006]                    mov  ax, _pic_dispatch_handler
    242 000000A7 AB                          stosw                ; [0000:009c] = AX
    243 000000A8 8CC8                        mov  ax, cs          ; 現在のCS
    244 000000AA AB                          stosw                ; [0000:009e] = CS
@@ -416,24 +416,24 @@
    416                                   %endif
    417                                  
    418                                      ; 変数初期化 (RAMエリアをクリア)
-   419 00000147 C706[4409]0000              mov word [dump_seg], 0x0000
-   420 0000014D C706[4609]0000              mov word [dump_off], 0x0000
-   421 00000153 C706[4809]0020              mov word [load_seg], 0x2000
+   419 00000147 C706[4E09]0000              mov word [dump_seg], 0x0000
+   420 0000014D C706[5009]0000              mov word [dump_off], 0x0000
+   421 00000153 C706[5209]0020              mov word [load_seg], 0x2000
    422                                  
    423                                      ; スタートメッセージの表示
-   424 00000159 BE[F806]                    mov si, msg_boot
-   425 0000015C E8E702                      call puts
+   424 00000159 BE[0107]                    mov si, msg_boot
+   425 0000015C E8F002                      call puts
    426                                  
    427                                  ; =================================================================
    428                                  ; Main Loop
    429                                  ; =================================================================
    430                                  monitor_loop:
    431 0000015F B03E                        mov al, '>'
-   432 00000161 E8F002                      call putc
+   432 00000161 E8F902                      call putc
    433 00000164 B020                        mov al, ' '
-   434 00000166 E8EB02                      call putc
+   434 00000166 E8F402                      call putc
    435                                  
-   436 00000169 E80A03                      call getc_echo  ; コマンド受信（エコーあり）
+   436 00000169 E81303                      call getc_echo  ; コマンド受信（エコーあり）
    437 0000016C 88C3                        mov bl, al
    438                                      
    439 0000016E 80FB64                      cmp bl, 'd'     ; dump command
@@ -447,40 +447,40 @@
    447 00000183 7503E9C800                  je do_load
    448                                      
    449 00000188 80FB67                      cmp bl, 'g'     ; go command
-   450 0000018B 7503E93B01                  je do_go
+   450 0000018B 7503E94401                  je do_go
    451 00000190 80FB47                      cmp bl, 'G'
-   452 00000193 7503E93301                  je do_go
+   452 00000193 7503E93C01                  je do_go
    453                                  
    454 00000198 80FB77                      cmp bl, 'w'     ; Write command
-   455 0000019B 7503E95701                  je do_write
+   455 0000019B 7503E96001                  je do_write
    456 000001A0 80FB57                      cmp bl, 'W'
-   457 000001A3 7503E94F01                  je do_write
+   457 000001A3 7503E95801                  je do_write
    458                                  
    459 000001A8 3C69                        cmp al, 'i'     ; Input Port command
-   460 000001AA 7503E98B01                  je do_in
+   460 000001AA 7503E99401                  je do_in
    461 000001AF 3C49                        cmp al, 'I'
-   462 000001B1 7503E98401                  je do_in
+   462 000001B1 7503E98D01                  je do_in
    463                                  
    464 000001B6 3C6F                        cmp al, 'o'     ; Output Port command
-   465 000001B8 7503E9A101                  je do_out
+   465 000001B8 7503E9AA01                  je do_out
    466 000001BD 3C4F                        cmp al, 'O'
-   467 000001BF 7503E99A01                  je do_out
+   467 000001BF 7503E9A301                  je do_out
    468                                  
    469 000001C4 3C73                        cmp al, 's'     ; Scan I/O command
-   470 000001C6 7503E9BA01                  je do_scan
+   470 000001C6 7503E9C301                  je do_scan
    471 000001CB 3C53                        cmp al, 'S'
-   472 000001CD 7503E9B301                  je do_scan
+   472 000001CD 7503E9BC01                  je do_scan
    473                                  
    474 000001D2 3C74                        cmp al, 't'     ; Scan Timer wait command
-   475 000001D4 7503E91E02                  je do_timer
+   475 000001D4 7503E92702                  je do_timer
    476 000001D9 3C54                        cmp al, 'T'
-   477 000001DB 7503E91702                  je do_timer
+   477 000001DB 7503E92002                  je do_timer
    478                                  
    479 000001E0 3C3F                        cmp al, '?'     ; Help
-   480 000001E2 7503E95302                  je cmd_help
+   480 000001E2 7503E95C02                  je cmd_help
    481                                  
    482                                      ; 知らないコマンドなら改行して戻る
-   483 000001E7 E89502                      call putc_crlf
+   483 000001E7 E89E02                      call putc_crlf
    484 000001EA E972FF                      jmp monitor_loop
    485                                  
    486                                  ; =================================================================
@@ -490,27 +490,27 @@
    490                                  ;   D <Seg> <Off>   -> Set address and dump (e.g., D 0000 8000)
    491                                  ; =================================================================
    492                                  do_dump:
-   493 000001ED E88602                      call getc_echo      ; 区切り文字受信 (Space or Enter)
+   493 000001ED E88F02                      call getc_echo      ; 区切り文字受信 (Space or Enter)
    494 000001F0 3C0D                        cmp al, 0x0D        ; Enterならすぐ実行
    495 000001F2 7418                        je .dump_run
    496 000001F4 3C20                        cmp al, ' '         ; Spaceなら引数解析
    497 000001F6 7405                        je .parse_args
    498                                      
    499                                      ; それ以外なら無視して実行へ（またはエラー処理）
-   500 000001F8 E88402                      call putc_crlf
+   500 000001F8 E88D02                      call putc_crlf
    501 000001FB EB12                        jmp .dump_run_start
    502                                  
    503                                  .parse_args:
-   504 000001FD E8AD02                      call get_hex_word
-   505 00000200 A3[4409]                    mov [dump_seg], ax
-   506 00000203 E8ED02                      call skip_space
-   507 00000206 E8A402                      call get_hex_word
-   508 00000209 A3[4609]                    mov [dump_off], ax
+   504 000001FD E8B602                      call get_hex_word
+   505 00000200 A3[4E09]                    mov [dump_seg], ax
+   506 00000203 E8F602                      call skip_space
+   507 00000206 E8AD02                      call get_hex_word
+   508 00000209 A3[5009]                    mov [dump_off], ax
    509                                      ; ここでEnter待ちをするか、そのまま実行するか
    510                                      ; 今回はパラメータ入力後にEnterを押したと仮定して改行
    511                                      
    512                                  .dump_run:
-   513 0000020C E87002                      call putc_crlf              ; 実行直前に改行
+   513 0000020C E87902                      call putc_crlf              ; 実行直前に改行
    514                                  
    515                                  .dump_run_start:
    516 0000020F B90400                      mov cx, 4                   ; 4行表示する
@@ -518,34 +518,34 @@
    518                                  .line_loop:
    519 00000212 51                          push cx
    520                                      
-   521 00000213 A1[4409]                    mov ax, [dump_seg]          ; セグメントの表示
-   522 00000216 E86F02                      call print_hex_word
+   521 00000213 A1[4E09]                    mov ax, [dump_seg]          ; セグメントの表示
+   522 00000216 E87802                      call print_hex_word
    523 00000219 B03A                        mov al, ':'                 ; 区切り文字の:を表示
-   524 0000021B E83602                      call putc
-   525 0000021E A1[4609]                    mov ax, [dump_off]          ; オフセットの表示
-   526 00000221 E86402                      call print_hex_word
+   524 0000021B E83F02                      call putc
+   525 0000021E A1[5009]                    mov ax, [dump_off]          ; オフセットの表示
+   526 00000221 E86D02                      call print_hex_word
    527 00000224 B020                        mov al, ' '                 ; 区切り文字のスペースを表示
-   528 00000226 E82B02                      call putc
+   528 00000226 E83402                      call putc
    529                                  
-   530 00000229 8B36[4609]                  mov si, [dump_off]          ; DS変更前に、モニタ変数からオフセットをSIにロード
+   530 00000229 8B36[5009]                  mov si, [dump_off]          ; DS変更前に、モニタ変数からオフセットをSIにロード
    531                                  
    532 0000022D 1E                          push ds                     ; モニタのDSを保存
-   533 0000022E 8E1E[4409]                  mov ds, [dump_seg]          ; DSをターゲットセグメントに変更
+   533 0000022E 8E1E[4E09]                  mov ds, [dump_seg]          ; DSをターゲットセグメントに変更
    534                                      
    535 00000232 B91000                      mov cx, 16                  ; 16回繰り返すカウンタ
    536                                  .hex_loop:
    537 00000235 8A04                        mov al, [si]
-   538 00000237 E85502                      call print_hex_byte         ; メモリ内容の表示
+   538 00000237 E85E02                      call print_hex_byte         ; メモリ内容の表示
    539 0000023A B020                        mov al, ' '                 ; 区切り文字のスペースを表示
-   540 0000023C E81502                      call putc
+   540 0000023C E81E02                      call putc
    541 0000023F 46                          inc si                      ; 次のアドレスにする
    542 00000240 E2F3                        loop .hex_loop              ; 16回繰り返し    
    543                                  
    544 00000242 1F                          pop ds                      ; DSをモニタ用に戻す
    545                                  
-   546 00000243 8936[4609]                  mov [dump_off], si          ; DS復帰後に、SIの値をモニタ変数に保存
+   546 00000243 8936[5009]                  mov [dump_off], si          ; DS復帰後に、SIの値をモニタ変数に保存
    547                                  
-   548 00000247 E83502                      call putc_crlf              ; 改行する
+   548 00000247 E83E02                      call putc_crlf              ; 改行する
    549 0000024A 59                          pop cx
    550 0000024B E2C5                        loop .line_loop             ; 4回繰り返す
    551                                      
@@ -559,1071 +559,1079 @@
    559                                  ; =================================================================
    560                                  do_load:
    561                                      ; 一時的に ES をロード先にするため、デフォルト値をAXへ退避
-   562 00000250 A1[4809]                    mov ax, [load_seg]
+   562 00000250 A1[5209]                    mov ax, [load_seg]
    563 00000253 06                          push es             ; RAM用ESを保存
    564 00000254 50                          push ax             ; デフォルトセグメントを保存
    565                                      
-   566 00000255 E81E02                      call getc_echo
+   566 00000255 E82702                      call getc_echo
    567 00000258 3C20                        cmp al, ' '         ; スペースがあればパラメタ付きと判断
    568 0000025A 7402                        je .parse_seg
    569 0000025C EB05                        jmp .start_load
    570                                  
    571                                  .parse_seg:
    572 0000025E 58                          pop ax              ; 不要になったデフォルトを捨てる
-   573 0000025F E84B02                      call get_hex_word   ; 新しいセグメント取得
+   573 0000025F E85402                      call get_hex_word   ; 新しいセグメント取得
    574 00000262 50                          push ax             ; 保存
    575                                  
    576                                  .start_load:
-   577 00000263 E81902                      call putc_crlf      ; メッセージ表示前に改行
-   578 00000266 BE[2407]                    mov si, msg_load    ; ロード開始メッセージを表示
-   579 00000269 E8DA01                      call puts
+   577 00000263 E82202                      call putc_crlf      ; メッセージ表示前に改行
+   578 00000266 BE[2E07]                    mov si, msg_load    ; ロード開始メッセージを表示
+   579 00000269 E8E301                      call puts
    580                                      
    581 0000026C 58                          pop ax
    582 0000026D 8EC0                        mov es, ax          ; ロード先をESに設定
    583                                      
    584                                      ; ターゲット表示
-   585 0000026F E81602                      call print_hex_word ; ESの値を表示
+   585 0000026F E81F02                      call print_hex_word ; ESの値を表示
    586 00000272 B03A                        mov al, ':'         ; 区切り文字を表示
-   587 00000274 E8DD01                      call putc
+   587 00000274 E8E601                      call putc
    588 00000277 B030                        mov al, '0'         ; 本来は0000だが、0と簡易表示
-   589 00000279 E8D801                      call putc
-   590 0000027C E80002                      call putc_crlf
+   589 00000279 E8E101                      call putc
+   590 0000027C E80902                      call putc_crlf
    591                                  
    592                                  .wait_record:
-   593 0000027F E8E501                      call getc           ; 開始文字を待つ
+   593 0000027F E8EE01                      call getc           ; 開始文字を待つ
    594 00000282 3C3A                        cmp al, ':'
    595 00000284 75F9                        jne .wait_record
    596                                  
-   597 00000286 E84902                      call get_hex_byte   ; データ長を読み込み
+   597 00000286 E85202                      call get_hex_byte   ; データ長を読み込み
    598 00000289 88C1                        mov cl, al          ; データ長をcxレジスタに設定
    599 0000028B B500                        mov ch, 0
    600                                      
-   601 0000028D E84202                      call get_hex_byte   ; 上位アドレスを読み込み
+   601 0000028D E84B02                      call get_hex_byte   ; 上位アドレスを読み込み
    602 00000290 88C7                        mov bh, al
-   603 00000292 E83D02                      call get_hex_byte   ; 下位アドレスを読み込み
+   603 00000292 E84602                      call get_hex_byte   ; 下位アドレスを読み込み
    604 00000295 88C3                        mov bl, al
    605                                      
-   606 00000297 E83802                      call get_hex_byte   ; レコードタイプを読み込み
+   606 00000297 E84102                      call get_hex_byte   ; レコードタイプを読み込み
    607 0000029A 3C01                        cmp al, 01          ; End of File?
-   608 0000029C 7419                        je .handle_eof      ; EOFの処理へ
+   608 0000029C 7422                        je .handle_eof      ; EOFの処理へ
    609 0000029E 3C00                        cmp al, 00          ; Data Record?
-   610 000002A0 751A                        jne .skip_line      ; その他はスキップ
+   610 000002A0 7523                        jne .skip_line      ; その他はスキップ
    611                                      
-   612 000002A2 E309                        jcxz .read_chk      ; データ長がゼロならチェックサム読み込み処理
+   612 000002A2 E312                        jcxz .read_chk      ; データ長がゼロならチェックサム読み込み処理
    613                                      
    614                                  .data_loop:
-   615 000002A4 E82B02                      call get_hex_byte   ; 1バイト読み取り
+   615 000002A4 E83402                      call get_hex_byte   ; 1バイト読み取り
    616 000002A7 268807                      mov [es:bx], al     ; ターゲット(ES)へ書き込み
    617 000002AA 43                          inc bx              ; 次のアドレスにする
-   618 000002AB E2F7                        loop .data_loop     ; データ長分繰り返す
-   619                                      
-   620                                  .read_chk:
-   621 000002AD E82202                      call get_hex_byte   ; チェックサム読み取り（読み飛ばし）
-   622 000002B0 B02E                        mov al, '.'         ; 1行読んだことを示す"."を出力
-   623 000002B2 E89F01                      call putc
-   624 000002B5 EBC8                        jmp .wait_record    ; 次のレコード読み取りへ
-   625                                  
-   626                                  .handle_eof:            ; EOFの場合
-   627 000002B7 E81802                      call get_hex_byte   ; チェックサムを読み飛ばす
-   628 000002BA EB02                        jmp .finish         ; 読み込み終了処理へ
-   629                                  
-   630                                  .skip_line:
-   631 000002BC EBC1                        jmp .wait_record    ; 次のレコード読み込みへ
-   632                                  
-   633                                  .finish:
-   634 000002BE 07                          pop es              ; RAM用ESを復帰
-   635 000002BF E8BD01                      call putc_crlf
-   636 000002C2 BE[3007]                    mov si, msg_ok      ; "OK"を表示
-   637 000002C5 E87E01                      call puts
-   638 000002C8 E994FE                      jmp monitor_loop    ; モニタのメインルーチンに飛ぶ
-   639                                  
-   640                                  ; =================================================================
-   641                                  ; Command: Execute
-   642                                  ; Usage:
-   643                                  ;   G <Seg> <Off>
-   644                                  ; Example: G 1000 0000
-   645                                  ; =================================================================
-   646                                  do_go:
-   647                                      ; Gコマンドは入力後に改行
-   648                                      
-   649 000002CB E8A801                      call getc_echo      ; Space?
-   650 000002CE 3C20                        cmp al, ' '
-   651 000002D0 751F                        jne .go_default     ; 引数なしならリターン(またはエラー)
-   652                                      
-   653                                      ; 1. セグメント (SSSS) を取得
-   654 000002D2 E8D801                      call get_hex_word   ; AX = Segment
-   655 000002D5 50                          push ax             ; スタックに積む (あとでRETFでCSになる)
-   656 000002D6 89C3                        mov bx, ax          ; DS/ES用のために保存しておく
-   657                                      
-   658                                      ; スペース読み飛ばし (もしあれば)
-   659 000002D8 E81802                      call skip_space
+   618                                      ; --- 追加: 64KBの境界チェック ---
+   619 000002AB 7507                        jnz .loop_next      ; bxが0にならなければそのまま
+   620 000002AD 8CC0                        mov ax, es          ; bxが0(一周)したら
+   621 000002AF 050010                      add ax, 0x1000      ; セグメントを64KB分(0x1000)進める
+   622 000002B2 8EC0                        mov es, ax
+   623                                      ; -----------------------------
+   624                                  
+   625                                  .loop_next:
+   626 000002B4 E2EE                        loop .data_loop     ; データ長分繰り返す
+   627                                      
+   628                                  .read_chk:
+   629 000002B6 E82202                      call get_hex_byte   ; チェックサム読み取り（読み飛ばし）
+   630 000002B9 B02E                        mov al, '.'         ; 1行読んだことを示す"."を出力
+   631 000002BB E89F01                      call putc
+   632 000002BE EBBF                        jmp .wait_record    ; 次のレコード読み取りへ
+   633                                  
+   634                                  .handle_eof:            ; EOFの場合
+   635 000002C0 E81802                      call get_hex_byte   ; チェックサムを読み飛ばす
+   636 000002C3 EB02                        jmp .finish         ; 読み込み終了処理へ
+   637                                  
+   638                                  .skip_line:
+   639 000002C5 EBB8                        jmp .wait_record    ; 次のレコード読み込みへ
+   640                                  
+   641                                  .finish:
+   642 000002C7 07                          pop es              ; RAM用ESを復帰
+   643 000002C8 E8BD01                      call putc_crlf
+   644 000002CB BE[3A07]                    mov si, msg_ok      ; "OK"を表示
+   645 000002CE E87E01                      call puts
+   646 000002D1 E98BFE                      jmp monitor_loop    ; モニタのメインルーチンに飛ぶ
+   647                                  
+   648                                  ; =================================================================
+   649                                  ; Command: Execute
+   650                                  ; Usage:
+   651                                  ;   G <Seg> <Off>
+   652                                  ; Example: G 1000 0000
+   653                                  ; =================================================================
+   654                                  do_go:
+   655                                      ; Gコマンドは入力後に改行
+   656                                      
+   657 000002D4 E8A801                      call getc_echo      ; Space?
+   658 000002D7 3C20                        cmp al, ' '
+   659 000002D9 751F                        jne .go_default     ; 引数なしならリターン(またはエラー)
    660                                      
-   661                                      ; 2. オフセット (OOOO) を取得
-   662 000002DB E8CF01                      call get_hex_word   ; AX = Offset
-   663 000002DE 50                          push ax             ; スタックに積む (あとでRETFでIPになる)
-   664                                      
-   665 000002DF E89D01                      call putc_crlf      ; 実行前に改行
-   666 000002E2 BE[3307]                    mov si, msg_go
-   667 000002E5 E85E01                      call puts
-   668 000002E8 E89401                      call putc_crlf
-   669                                      
-   670                                      ; 3. 実行環境のセットアップ
-   671                                      ; ジャンプ先のプログラムのために、DS, ES もセグメントに合わせておくのが親切
-   672 000002EB 8EDB                        mov ds, bx
-   673 000002ED 8EC3                        mov es, bx
-   674                                  
-   675                                      ; 必要なら割り込み禁止 (OSが自分でセットアップするまで黙らせる)
-   676 000002EF FA                          cli
-   677                                  
-   678                                      ; 4. ジャンプ！ (Far Return)
-   679                                      ; スタック上の [IP, CS] をポップして、そこへ飛ぶ
-   680 000002F0 CB                          retf                ; Jump!
-   681                                  
-   682                                  .go_default:
-   683 000002F1 E88B01                      call putc_crlf      ; 改行して
-   684 000002F4 E968FE                      jmp monitor_loop    ; モニタのメインルーチンに飛ぶ
+   661                                      ; 1. セグメント (SSSS) を取得
+   662 000002DB E8D801                      call get_hex_word   ; AX = Segment
+   663 000002DE 50                          push ax             ; スタックに積む (あとでRETFでCSになる)
+   664 000002DF 89C3                        mov bx, ax          ; DS/ES用のために保存しておく
+   665                                      
+   666                                      ; スペース読み飛ばし (もしあれば)
+   667 000002E1 E81802                      call skip_space
+   668                                      
+   669                                      ; 2. オフセット (OOOO) を取得
+   670 000002E4 E8CF01                      call get_hex_word   ; AX = Offset
+   671 000002E7 50                          push ax             ; スタックに積む (あとでRETFでIPになる)
+   672                                      
+   673 000002E8 E89D01                      call putc_crlf      ; 実行前に改行
+   674 000002EB BE[3D07]                    mov si, msg_go
+   675 000002EE E85E01                      call puts
+   676 000002F1 E89401                      call putc_crlf
+   677                                      
+   678                                      ; 3. 実行環境のセットアップ
+   679                                      ; ジャンプ先のプログラムのために、DS, ES もセグメントに合わせておくのが親切
+   680 000002F4 8EDB                        mov ds, bx
+   681 000002F6 8EC3                        mov es, bx
+   682                                  
+   683                                      ; 必要なら割り込み禁止 (OSが自分でセットアップするまで黙らせる)
+   684 000002F8 FA                          cli
    685                                  
-   686                                  ; ==============================================================
-   687                                  ; Command: Write Memory
-   688                                  ; Usage:
-   689                                  ;   W <Seg> <Off> <Val>
-   690                                  ; ==============================================================
-   691                                  do_write:    
-   692 000002F7 E87C01                      call getc_echo      ; Space?
-   693 000002FA 3C20                        cmp al, ' '
-   694 000002FC 7403E9F601                  jne error           ; 引数なしならリターン(またはエラー)
-   695                                  
-   696                                      ; 1. セグメント (SSSS) を取得
-   697 00000301 E8A901                      call get_hex_word   ; AX = Segment
-   698 00000304 50                          push ax             ; ターゲットセグメントを保存
-   699                                      
-   700 00000305 E86E01                      call getc_echo      ; Space?
-   701 00000308 3C20                        cmp al, ' '
-   702 0000030A 7403E9E801                  jne error           ; 引数なしならリターン(またはエラー)
-   703                                      
-   704                                      ; 2. オフセット (OOOO) を取得
-   705 0000030F E89B01                      call get_hex_word   ; AX = Offset
-   706 00000312 50                          push ax             ; ターゲットオフセットを保存
-   707                                  
-   708 00000313 E86001                      call getc_echo      ; Space?
-   709 00000316 3C20                        cmp al, ' '
-   710 00000318 7403E9DA01                  jne error           ; 引数なしならリターン(またはエラー)
-   711                                  
-   712                                      ; 3. 設定データ (VV) を取得
-   713 0000031D E89C01                      call get_hex_byte_echo   ; AL = Value
-   714                                  
-   715 00000320 5B                          pop bx              ; bx = Offset
-   716 00000321 5A                          pop dx              ; dx = Target Segment
-   717                                  
-   718                                      ; 次回のDコマンドのためにダンプ位置変数を更新する
-   719 00000322 8916[4409]                  mov [dump_seg], dx
-   720 00000326 891E[4609]                  mov [dump_off], bx
-   721                                      
-   722 0000032A 8EDA                        mov ds, dx          ; DS再設定
-   723 0000032C 3E8807                      mov [ds:bx], al     ; 書き込み！
-   724                                      
-   725 0000032F 0E                          push cs             ; DSを復帰 (CS=DS前提のモニタなので)
-   726 00000330 1F                          pop ds
-   727                                  
-   728 00000331 BE[5607]                    mov si, msg_done
-   729 00000334 E80F01                      call puts
-   730 00000337 E925FE                      jmp monitor_loop
-   731                                  
-   732                                  ; ==============================================================
-   733                                  ; Command: Input from Port
-   734                                  ; Usage:
-   735                                  ;   I <Port>
-   736                                  ; ==============================================================
-   737                                  do_in:
-   738 0000033A E83901                      call getc_echo
-   739 0000033D 3C20                        cmp al, ' '         ; スペースがあればパラメタ付きと判断
-   740 0000033F 7403E9B301                  jne error           ; パラメタが無い場合はエラー処理へ
-   741                                  
-   742 00000344 E86601                      call get_hex_word   ; ポートアドレスを取得
-   743 00000347 89C2                        mov dx, ax          ; 保存
-   744 00000349 EC                          in al, dx           ; I/O Read
-   745                                      
-   746 0000034A 50                          push ax
-   747 0000034B E83101                      call putc_crlf      ; メッセージ表示前に改行
-   748 0000034E BE[5007]                    mov si, msg_in_res
-   749 00000351 E8F200                      call puts
-   750 00000354 58                          pop ax
-   751                                  
-   752 00000355 E83701                      call print_hex_byte ; 値を表示
-   753                                  
-   754 00000358 E82401                      call putc_crlf      ; 改行して
-   755 0000035B E901FE                      jmp monitor_loop    ; モニタのメインルーチンに飛ぶ
-   756                                  
-   757                                  ; ==============================================================
-   758                                  ; Command: Output to Port
-   759                                  ; Usage
-   760                                  ;   O <Port> <Val>
-   761                                  ; ==============================================================
-   762                                  do_out:
-   763 0000035E E81501                      call getc_echo
-   764 00000361 3C20                        cmp al, ' '         ; スペースがあればパラメタ付きと判断
-   765 00000363 7403E98F01                  jne error           ; パラメタが無い場合はエラー処理へ
-   766                                  
-   767 00000368 E84201                      call get_hex_word   ; ポートアドレスを取得
-   768 0000036B 50                          push ax             ; スタックに積む
-   769                                  
-   770 0000036C E80701                      call getc_echo
-   771 0000036F 3C20                        cmp al, ' '         ; スペースがあれば第2パラメタがあると判断
-   772 00000371 750E                        jne error_pop       ; 第2パラメタが無い場合はエラー処理へ
-   773                                      
-   774 00000373 E84601                      call get_hex_byte_echo   ; 出力値を取得
-   775 00000376 5A                          pop dx              ; スタックからDXにセット
-   776                                      
-   777 00000377 EE                          out dx, al          ; I/O Write
-   778                                      
-   779 00000378 BE[5607]                    mov si, msg_done    ; DONEを表示。改行付き。
-   780 0000037B E8C800                      call puts
-   781 0000037E E9DEFD                      jmp monitor_loop    ; モニタのメインルーチンに飛ぶ
-   782                                  
-   783                                  error_pop:
-   784 00000381 58                          pop ax              ; 使わなかったスタックを捨てる
-   785 00000382 E97201                      jmp error
-   786                                  
-   787                                  ; ==============================================================
-   788                                  ; Command: Scan I/O Ports
-   789                                  ; Usage:
-   790                                  ;   S <Start_port> <End_port>
-   791                                  ; Description: Reads ports and prints if value is NOT 0xFF
-   792                                  ; ==============================================================
-   793                                  do_scan:
-   794 00000385 E8EE00                      call getc_echo
-   795 00000388 3C20                        cmp al, ' '         ; スペースがあればパラメタ付きと判断
-   796 0000038A 7403E96801                  jne error           ; パラメタが無い場合はエラー処理へ
-   797                                  
-   798 0000038F E81B01                      call get_hex_word   ; スタートポートアドレスを取得
-   799 00000392 89C3                        mov bx, ax          ; BX = Start Address
-   800                                      
-   801 00000394 E8DF00                      call getc_echo
-   802 00000397 3C20                        cmp al, ' '         ; スペースがあれば第2パラメタがあると判断
-   803 00000399 75E6                        jne error_pop       ; 第2パラメタが無い場合はエラー処理へ
-   804                                  
-   805 0000039B E80F01                      call get_hex_word   ; エンドポートアドレスを取得
-   806 0000039E 89C1                        mov cx, ax          ; CX = End Address
-   807                                  
-   808 000003A0 39CB                        cmp bx, cx          ; 開始 > 終了 ならエラー終了
-   809 000003A2 7603E95001                  ja error
-   810                                  
-   811 000003A7 E8D500                      call putc_crlf
-   812 000003AA BE[E507]                    mov si, msg_scan_start
-   813 000003AD E89600                      call puts
-   814                                  
-   815                                  .scan_loop:
-   816 000003B0 89DA                        mov dx, bx          ; DXにポートアドレス設定
-   817 000003B2 EC                          in al, dx           ; I/O Read
+   686                                      ; 4. ジャンプ！ (Far Return)
+   687                                      ; スタック上の [IP, CS] をポップして、そこへ飛ぶ
+   688 000002F9 CB                          retf                ; Jump!
+   689                                  
+   690                                  .go_default:
+   691 000002FA E88B01                      call putc_crlf      ; 改行して
+   692 000002FD E95FFE                      jmp monitor_loop    ; モニタのメインルーチンに飛ぶ
+   693                                  
+   694                                  ; ==============================================================
+   695                                  ; Command: Write Memory
+   696                                  ; Usage:
+   697                                  ;   W <Seg> <Off> <Val>
+   698                                  ; ==============================================================
+   699                                  do_write:    
+   700 00000300 E87C01                      call getc_echo      ; Space?
+   701 00000303 3C20                        cmp al, ' '
+   702 00000305 7403E9F601                  jne error           ; 引数なしならリターン(またはエラー)
+   703                                  
+   704                                      ; 1. セグメント (SSSS) を取得
+   705 0000030A E8A901                      call get_hex_word   ; AX = Segment
+   706 0000030D 50                          push ax             ; ターゲットセグメントを保存
+   707                                      
+   708 0000030E E86E01                      call getc_echo      ; Space?
+   709 00000311 3C20                        cmp al, ' '
+   710 00000313 7403E9E801                  jne error           ; 引数なしならリターン(またはエラー)
+   711                                      
+   712                                      ; 2. オフセット (OOOO) を取得
+   713 00000318 E89B01                      call get_hex_word   ; AX = Offset
+   714 0000031B 50                          push ax             ; ターゲットオフセットを保存
+   715                                  
+   716 0000031C E86001                      call getc_echo      ; Space?
+   717 0000031F 3C20                        cmp al, ' '
+   718 00000321 7403E9DA01                  jne error           ; 引数なしならリターン(またはエラー)
+   719                                  
+   720                                      ; 3. 設定データ (VV) を取得
+   721 00000326 E89C01                      call get_hex_byte_echo   ; AL = Value
+   722                                  
+   723 00000329 5B                          pop bx              ; bx = Offset
+   724 0000032A 5A                          pop dx              ; dx = Target Segment
+   725                                  
+   726                                      ; 次回のDコマンドのためにダンプ位置変数を更新する
+   727 0000032B 8916[4E09]                  mov [dump_seg], dx
+   728 0000032F 891E[5009]                  mov [dump_off], bx
+   729                                      
+   730 00000333 8EDA                        mov ds, dx          ; DS再設定
+   731 00000335 3E8807                      mov [ds:bx], al     ; 書き込み！
+   732                                      
+   733 00000338 0E                          push cs             ; DSを復帰 (CS=DS前提のモニタなので)
+   734 00000339 1F                          pop ds
+   735                                  
+   736 0000033A BE[6007]                    mov si, msg_done
+   737 0000033D E80F01                      call puts
+   738 00000340 E91CFE                      jmp monitor_loop
+   739                                  
+   740                                  ; ==============================================================
+   741                                  ; Command: Input from Port
+   742                                  ; Usage:
+   743                                  ;   I <Port>
+   744                                  ; ==============================================================
+   745                                  do_in:
+   746 00000343 E83901                      call getc_echo
+   747 00000346 3C20                        cmp al, ' '         ; スペースがあればパラメタ付きと判断
+   748 00000348 7403E9B301                  jne error           ; パラメタが無い場合はエラー処理へ
+   749                                  
+   750 0000034D E86601                      call get_hex_word   ; ポートアドレスを取得
+   751 00000350 89C2                        mov dx, ax          ; 保存
+   752 00000352 EC                          in al, dx           ; I/O Read
+   753                                      
+   754 00000353 50                          push ax
+   755 00000354 E83101                      call putc_crlf      ; メッセージ表示前に改行
+   756 00000357 BE[5A07]                    mov si, msg_in_res
+   757 0000035A E8F200                      call puts
+   758 0000035D 58                          pop ax
+   759                                  
+   760 0000035E E83701                      call print_hex_byte ; 値を表示
+   761                                  
+   762 00000361 E82401                      call putc_crlf      ; 改行して
+   763 00000364 E9F8FD                      jmp monitor_loop    ; モニタのメインルーチンに飛ぶ
+   764                                  
+   765                                  ; ==============================================================
+   766                                  ; Command: Output to Port
+   767                                  ; Usage
+   768                                  ;   O <Port> <Val>
+   769                                  ; ==============================================================
+   770                                  do_out:
+   771 00000367 E81501                      call getc_echo
+   772 0000036A 3C20                        cmp al, ' '         ; スペースがあればパラメタ付きと判断
+   773 0000036C 7403E98F01                  jne error           ; パラメタが無い場合はエラー処理へ
+   774                                  
+   775 00000371 E84201                      call get_hex_word   ; ポートアドレスを取得
+   776 00000374 50                          push ax             ; スタックに積む
+   777                                  
+   778 00000375 E80701                      call getc_echo
+   779 00000378 3C20                        cmp al, ' '         ; スペースがあれば第2パラメタがあると判断
+   780 0000037A 750E                        jne error_pop       ; 第2パラメタが無い場合はエラー処理へ
+   781                                      
+   782 0000037C E84601                      call get_hex_byte_echo   ; 出力値を取得
+   783 0000037F 5A                          pop dx              ; スタックからDXにセット
+   784                                      
+   785 00000380 EE                          out dx, al          ; I/O Write
+   786                                      
+   787 00000381 BE[6007]                    mov si, msg_done    ; DONEを表示。改行付き。
+   788 00000384 E8C800                      call puts
+   789 00000387 E9D5FD                      jmp monitor_loop    ; モニタのメインルーチンに飛ぶ
+   790                                  
+   791                                  error_pop:
+   792 0000038A 58                          pop ax              ; 使わなかったスタックを捨てる
+   793 0000038B E97201                      jmp error
+   794                                  
+   795                                  ; ==============================================================
+   796                                  ; Command: Scan I/O Ports
+   797                                  ; Usage:
+   798                                  ;   S <Start_port> <End_port>
+   799                                  ; Description: Reads ports and prints if value is NOT 0xFF
+   800                                  ; ==============================================================
+   801                                  do_scan:
+   802 0000038E E8EE00                      call getc_echo
+   803 00000391 3C20                        cmp al, ' '         ; スペースがあればパラメタ付きと判断
+   804 00000393 7403E96801                  jne error           ; パラメタが無い場合はエラー処理へ
+   805                                  
+   806 00000398 E81B01                      call get_hex_word   ; スタートポートアドレスを取得
+   807 0000039B 89C3                        mov bx, ax          ; BX = Start Address
+   808                                      
+   809 0000039D E8DF00                      call getc_echo
+   810 000003A0 3C20                        cmp al, ' '         ; スペースがあれば第2パラメタがあると判断
+   811 000003A2 75E6                        jne error_pop       ; 第2パラメタが無い場合はエラー処理へ
+   812                                  
+   813 000003A4 E80F01                      call get_hex_word   ; エンドポートアドレスを取得
+   814 000003A7 89C1                        mov cx, ax          ; CX = End Address
+   815                                  
+   816 000003A9 39CB                        cmp bx, cx          ; 開始 > 終了 ならエラー終了
+   817 000003AB 7603E95001                  ja error
    818                                  
-   819 000003B3 3CFF                        cmp al, 0xFF        ; 0xFF (Empty Bus) なら表示しない
-   820 000003B5 741D                        je .next_port
-   821                                  
-   822 000003B7 50                          push ax             ; Readした値をスタックに保存
-   823                                  
-   824                                      ; --- 有効な値が見つかった場合の表示 ---
-   825                                      ; [Port]: Value
-   826 000003B8 89D8                        mov ax, bx
-   827 000003BA E8CB00                      call print_hex_word ; ポートアドレスの表示
-   828 000003BD B03A                        mov al, ':'
-   829 000003BF E89200                      call putc
-   830 000003C2 B020                        mov al, ' '
-   831 000003C4 E88D00                      call putc
-   832                                      
-   833 000003C7 58                          pop ax
-   834 000003C8 E8C400                      call print_hex_byte ; Readした値の表示
-   835                                      
-   836 000003CB BE[1008]                    mov si, msg_space   ; "  "
-   837 000003CE E87500                      call puts
-   838                                  
-   839                                      ; 1行に見やすく並べるため、適当な間隔で改行を入れる等の工夫も可能ですが
-   840                                      ; ここでは単純にリスト形式で改行します
-   841 000003D1 E8AB00                      call putc_crlf
-   842                                  
-   843                                  .next_port:
-   844 000003D4 43                          inc bx              ; 次のアドレスへ
-   845                                      
-   846                                      ; キー入力チェック（長いスキャンを中断できるようにする）
-   847 000003D5 BA6120                      mov dx, SCU_SST
-   848 000003D8 EC                          in al, dx
-   849 000003D9 A802                        test al, RX_READY   ; RxRDY?
-   850 000003DB 750D                        jnz .abort          ; 何かキーが押されたら中断
-   851                                  
-   852 000003DD 39CB                        cmp bx, cx
-   853 000003DF 76CF                        jbe .scan_loop      ; BX <= CX ならループ
-   854                                  
-   855 000003E1 BE[5607]                    mov si, msg_done
-   856 000003E4 E85F00                      call puts
-   857 000003E7 E975FD                      jmp monitor_loop
-   858                                  
-   859                                  .abort:
-   860                                      ; 入力バッファを空読みしておく
-   861 000003EA BA6020                      mov dx, SCU_DATA
-   862 000003ED EC                          in al, dx
-   863 000003EE BE[1308]                    mov si, msg_abort
-   864 000003F1 E85200                      call puts
-   865 000003F4 E968FD                      jmp monitor_loop
+   819 000003B0 E8D500                      call putc_crlf
+   820 000003B3 BE[EF07]                    mov si, msg_scan_start
+   821 000003B6 E89600                      call puts
+   822                                  
+   823                                  .scan_loop:
+   824 000003B9 89DA                        mov dx, bx          ; DXにポートアドレス設定
+   825 000003BB EC                          in al, dx           ; I/O Read
+   826                                  
+   827 000003BC 3CFF                        cmp al, 0xFF        ; 0xFF (Empty Bus) なら表示しない
+   828 000003BE 741D                        je .next_port
+   829                                  
+   830 000003C0 50                          push ax             ; Readした値をスタックに保存
+   831                                  
+   832                                      ; --- 有効な値が見つかった場合の表示 ---
+   833                                      ; [Port]: Value
+   834 000003C1 89D8                        mov ax, bx
+   835 000003C3 E8CB00                      call print_hex_word ; ポートアドレスの表示
+   836 000003C6 B03A                        mov al, ':'
+   837 000003C8 E89200                      call putc
+   838 000003CB B020                        mov al, ' '
+   839 000003CD E88D00                      call putc
+   840                                      
+   841 000003D0 58                          pop ax
+   842 000003D1 E8C400                      call print_hex_byte ; Readした値の表示
+   843                                      
+   844 000003D4 BE[1A08]                    mov si, msg_space   ; "  "
+   845 000003D7 E87500                      call puts
+   846                                  
+   847                                      ; 1行に見やすく並べるため、適当な間隔で改行を入れる等の工夫も可能ですが
+   848                                      ; ここでは単純にリスト形式で改行します
+   849 000003DA E8AB00                      call putc_crlf
+   850                                  
+   851                                  .next_port:
+   852 000003DD 43                          inc bx              ; 次のアドレスへ
+   853                                      
+   854                                      ; キー入力チェック（長いスキャンを中断できるようにする）
+   855 000003DE BA6120                      mov dx, SCU_SST
+   856 000003E1 EC                          in al, dx
+   857 000003E2 A802                        test al, RX_READY   ; RxRDY?
+   858 000003E4 750D                        jnz .abort          ; 何かキーが押されたら中断
+   859                                  
+   860 000003E6 39CB                        cmp bx, cx
+   861 000003E8 76CF                        jbe .scan_loop      ; BX <= CX ならループ
+   862                                  
+   863 000003EA BE[6007]                    mov si, msg_done
+   864 000003ED E85F00                      call puts
+   865 000003F0 E96CFD                      jmp monitor_loop
    866                                  
-   867                                  ; ==============================================================
-   868                                  ; Command: Timer
-   869                                  ;   T          -> Show current tick counter (32-bit HEX)
-   870                                  ;   T <val>    -> Wait for <val> ticks (10ms unit)
-   871                                  ; ==============================================================
-   872                                  do_timer:
-   873 000003F7 E87C00                      call getc_echo      ; コマンド('T')の次の文字を取得
-   874 000003FA 3C0D                        cmp al, 0x0D        ; Enterキー(CR)なら表示モードへ
-   875 000003FC 7421                        je .show_counter
-   876 000003FE 3C20                        cmp al, ' '         ; スペースならWaitモードへ
-   877 00000400 7403E9F200                  jne error           ; それ以外はエラー
-   878                                  
-   879                                      ; --- Wait Mode (引数あり: T 0064 等) ---
-   880 00000405 E8A500                      call get_hex_word   ; AX = 待ち時間 (0064h = 1秒)
-   881                                  
-   882                                      ; 開始時刻を保存 (Start Time)
-   883 00000408 8B1E[4A09]                  mov bx, [tick_counter_lo]
-   884                                  
-   885                                  .wait_loop:
-   886                                      ; 1. 現在時刻を取得
-   887 0000040C 8B0E[4A09]                  mov cx, [tick_counter_lo]
-   888                                      
-   889                                      ; 2. 経過時間を計算 (Current - Start)
-   890                                      ; オーバーフローしても、この引き算の結果は正しい経過時間になる
-   891 00000410 29D9                        sub cx, bx          
-   892                                      
-   893                                      ; 3. 経過時間 < 待ち時間 ならループ継続
-   894 00000412 39C1                        cmp cx, ax
-   895 00000414 72F6                        jb .wait_loop       ; Jump if Below (unsigned compare)
-   896                                  
-   897                                      ; 指定時間経過した
-   898 00000416 BE[5607]                    mov si, msg_done
-   899 00000419 E82A00                      call puts
-   900 0000041C E940FD                      jmp monitor_loop
-   901                                  
-   902                                  .show_counter:
-   903                                      ; --- Show Counter Mode (引数なし: Tのみ) ---
-   904 0000041F E85D00                      call putc_crlf
-   905                                      
-   906 00000422 BE[1E08]                    mov si, msg_tick    ; "Tick: "
-   907 00000425 E81E00                      call puts
-   908                                  
-   909                                      ; 32bitカウンタを [High][Low] の順で表示
-   910 00000428 A1[4C09]                    mov ax, [tick_counter_hi]
-   911 0000042B E85A00                      call print_hex_word
-   912 0000042E A1[4A09]                    mov ax, [tick_counter_lo]
-   913 00000431 E85400                      call print_hex_word
-   914                                      
-   915 00000434 E84800                      call putc_crlf
-   916 00000437 E925FD                      jmp monitor_loop
-   917                                  
-   918                                  ; ==============================================================
-   919                                  ; Command: Help
-   920                                  ; ==============================================================
-   921                                  cmd_help:
-   922 0000043A E84200                      call putc_crlf
-   923 0000043D BE[6207]                    mov si, msg_help
-   924 00000440 E80300                      call puts
-   925 00000443 E919FD                      jmp monitor_loop
-   926                                  
-   927                                  ; =================================================================
-   928                                  ; Utilities
-   929                                  ; =================================================================
-   930                                  
-   931                                  ; 文字列出力
-   932                                  puts:
-   933 00000446 2E8A04                      mov al, [cs:si]
-   934 00000449 08C0                        or al, al
-   935 0000044B 7406                        jz .ret
-   936 0000044D E80400                      call putc
-   937 00000450 46                          inc si
-   938 00000451 EBF3                        jmp puts
-   939 00000453 C3                      .ret: ret
-   940                                  
-   941                                  ; 1文字出力
-   942                                  putc:
-   943 00000454 52                          push dx
-   944 00000455 50                          push ax
-   945 00000456 BA6120                      mov dx, SCU_SST
-   946 00000459 EC                      .w: in al, dx
-   947 0000045A A801                        test al, TX_READY  ; TX Ready?
-   948 0000045C 74FB                        jz .w
-   949 0000045E BA6020                      mov dx, SCU_DATA
-   950 00000461 58                          pop ax
-   951 00000462 50                          push ax
-   952 00000463 EE                          out dx, al
-   953 00000464 58                          pop ax
-   954 00000465 5A                          pop dx
-   955 00000466 C3                          ret
-   956                                  
-   957                                  ; 1文字入力
-   958                                  getc:
-   959 00000467 52                          push dx
-   960 00000468 BA6120                      mov dx, SCU_SST
-   961 0000046B EC                      .w: in al, dx
-   962 0000046C A802                        test al, RX_READY  ; RX Ready?
-   963 0000046E 74FB                        jz .w
-   964 00000470 BA6020                      mov dx, SCU_DATA
-   965 00000473 EC                          in al, dx
-   966 00000474 5A                          pop dx
-   967 00000475 C3                          ret
-   968                                  
-   969                                  ; 1文字入力　エコーバックあり
-   970                                  getc_echo:
-   971 00000476 E8EEFF                      call getc
-   972 00000479 50                          push ax
-   973 0000047A E8D7FF                      call putc
-   974 0000047D 58                          pop ax
+   867                                  .abort:
+   868                                      ; 入力バッファを空読みしておく
+   869 000003F3 BA6020                      mov dx, SCU_DATA
+   870 000003F6 EC                          in al, dx
+   871 000003F7 BE[1D08]                    mov si, msg_abort
+   872 000003FA E85200                      call puts
+   873 000003FD E95FFD                      jmp monitor_loop
+   874                                  
+   875                                  ; ==============================================================
+   876                                  ; Command: Timer
+   877                                  ;   T          -> Show current tick counter (32-bit HEX)
+   878                                  ;   T <val>    -> Wait for <val> ticks (10ms unit)
+   879                                  ; ==============================================================
+   880                                  do_timer:
+   881 00000400 E87C00                      call getc_echo      ; コマンド('T')の次の文字を取得
+   882 00000403 3C0D                        cmp al, 0x0D        ; Enterキー(CR)なら表示モードへ
+   883 00000405 7421                        je .show_counter
+   884 00000407 3C20                        cmp al, ' '         ; スペースならWaitモードへ
+   885 00000409 7403E9F200                  jne error           ; それ以外はエラー
+   886                                  
+   887                                      ; --- Wait Mode (引数あり: T 0064 等) ---
+   888 0000040E E8A500                      call get_hex_word   ; AX = 待ち時間 (0064h = 1秒)
+   889                                  
+   890                                      ; 開始時刻を保存 (Start Time)
+   891 00000411 8B1E[5409]                  mov bx, [tick_counter_lo]
+   892                                  
+   893                                  .wait_loop:
+   894                                      ; 1. 現在時刻を取得
+   895 00000415 8B0E[5409]                  mov cx, [tick_counter_lo]
+   896                                      
+   897                                      ; 2. 経過時間を計算 (Current - Start)
+   898                                      ; オーバーフローしても、この引き算の結果は正しい経過時間になる
+   899 00000419 29D9                        sub cx, bx          
+   900                                      
+   901                                      ; 3. 経過時間 < 待ち時間 ならループ継続
+   902 0000041B 39C1                        cmp cx, ax
+   903 0000041D 72F6                        jb .wait_loop       ; Jump if Below (unsigned compare)
+   904                                  
+   905                                      ; 指定時間経過した
+   906 0000041F BE[6007]                    mov si, msg_done
+   907 00000422 E82A00                      call puts
+   908 00000425 E937FD                      jmp monitor_loop
+   909                                  
+   910                                  .show_counter:
+   911                                      ; --- Show Counter Mode (引数なし: Tのみ) ---
+   912 00000428 E85D00                      call putc_crlf
+   913                                      
+   914 0000042B BE[2808]                    mov si, msg_tick    ; "Tick: "
+   915 0000042E E81E00                      call puts
+   916                                  
+   917                                      ; 32bitカウンタを [High][Low] の順で表示
+   918 00000431 A1[5609]                    mov ax, [tick_counter_hi]
+   919 00000434 E85A00                      call print_hex_word
+   920 00000437 A1[5409]                    mov ax, [tick_counter_lo]
+   921 0000043A E85400                      call print_hex_word
+   922                                      
+   923 0000043D E84800                      call putc_crlf
+   924 00000440 E91CFD                      jmp monitor_loop
+   925                                  
+   926                                  ; ==============================================================
+   927                                  ; Command: Help
+   928                                  ; ==============================================================
+   929                                  cmd_help:
+   930 00000443 E84200                      call putc_crlf
+   931 00000446 BE[6C07]                    mov si, msg_help
+   932 00000449 E80300                      call puts
+   933 0000044C E910FD                      jmp monitor_loop
+   934                                  
+   935                                  ; =================================================================
+   936                                  ; Utilities
+   937                                  ; =================================================================
+   938                                  
+   939                                  ; 文字列出力
+   940                                  puts:
+   941 0000044F 2E8A04                      mov al, [cs:si]
+   942 00000452 08C0                        or al, al
+   943 00000454 7406                        jz .ret
+   944 00000456 E80400                      call putc
+   945 00000459 46                          inc si
+   946 0000045A EBF3                        jmp puts
+   947 0000045C C3                      .ret: ret
+   948                                  
+   949                                  ; 1文字出力
+   950                                  putc:
+   951 0000045D 52                          push dx
+   952 0000045E 50                          push ax
+   953 0000045F BA6120                      mov dx, SCU_SST
+   954 00000462 EC                      .w: in al, dx
+   955 00000463 A801                        test al, TX_READY  ; TX Ready?
+   956 00000465 74FB                        jz .w
+   957 00000467 BA6020                      mov dx, SCU_DATA
+   958 0000046A 58                          pop ax
+   959 0000046B 50                          push ax
+   960 0000046C EE                          out dx, al
+   961 0000046D 58                          pop ax
+   962 0000046E 5A                          pop dx
+   963 0000046F C3                          ret
+   964                                  
+   965                                  ; 1文字入力
+   966                                  getc:
+   967 00000470 52                          push dx
+   968 00000471 BA6120                      mov dx, SCU_SST
+   969 00000474 EC                      .w: in al, dx
+   970 00000475 A802                        test al, RX_READY  ; RX Ready?
+   971 00000477 74FB                        jz .w
+   972 00000479 BA6020                      mov dx, SCU_DATA
+   973 0000047C EC                          in al, dx
+   974 0000047D 5A                          pop dx
    975 0000047E C3                          ret
    976                                  
-   977                                  ; 改行出力
-   978                                  putc_crlf:
-   979 0000047F B00D                        mov al, 0x0D
-   980 00000481 E8D0FF                      call putc
-   981 00000484 B00A                        mov al, 0x0A
-   982 00000486 EBCC                        jmp putc
-   983                                  
-   984                                  ; -----------------------------------------------------------------
-   985                                  ; Helper: 1ワードを4文字のHEXで表示 (例: 0x2F3F -> "2", "F", "3", "F")
-   986                                  ; Input: AX
-   987                                  ; -----------------------------------------------------------------
-   988                                  print_hex_word:
-   989 00000488 50                          push ax
-   990 00000489 88E0                        mov al, ah
-   991 0000048B E80100                      call print_hex_byte
-   992 0000048E 58                          pop ax
-   993                                  
-   994                                  ; -----------------------------------------------------------------
-   995                                  ; Helper: 1バイトを2文字のHEXで表示 (例: 0x3F -> "3", "F")
-   996                                  ; Input: AL
-   997                                  ; -----------------------------------------------------------------
-   998                                  print_hex_byte:
-   999 0000048F 50                          push ax
-  1000 00000490 51                          push cx
+   977                                  ; 1文字入力　エコーバックあり
+   978                                  getc_echo:
+   979 0000047F E8EEFF                      call getc
+   980 00000482 50                          push ax
+   981 00000483 E8D7FF                      call putc
+   982 00000486 58                          pop ax
+   983 00000487 C3                          ret
+   984                                  
+   985                                  ; 改行出力
+   986                                  putc_crlf:
+   987 00000488 B00D                        mov al, 0x0D
+   988 0000048A E8D0FF                      call putc
+   989 0000048D B00A                        mov al, 0x0A
+   990 0000048F EBCC                        jmp putc
+   991                                  
+   992                                  ; -----------------------------------------------------------------
+   993                                  ; Helper: 1ワードを4文字のHEXで表示 (例: 0x2F3F -> "2", "F", "3", "F")
+   994                                  ; Input: AX
+   995                                  ; -----------------------------------------------------------------
+   996                                  print_hex_word:
+   997 00000491 50                          push ax
+   998 00000492 88E0                        mov al, ah
+   999 00000494 E80100                      call print_hex_byte
+  1000 00000497 58                          pop ax
   1001                                  
-  1002                                      ; 上位バイトの表示
-  1003 00000491 50                          push ax
-  1004 00000492 C0E804                      shr al, 4
-  1005 00000495 E80900                      call .digit
-  1006                                  
-  1007                                      ; 下位バイトの表示
-  1008 00000498 58                          pop ax
-  1009 00000499 240F                        and al, 0x0F
-  1010 0000049B E80300                      call .digit
-  1011                                  
-  1012 0000049E 59                          pop cx
-  1013 0000049F 58                          pop ax
-  1014 000004A0 C3                          ret
-  1015                                  
-  1016                                  ; 数値を16進数文字に変換して表示 (0-15 -> 0-9, A-F)
-  1017                                  .digit:
-  1018 000004A1 0430                        add al, '0'
-  1019 000004A3 3C39                        cmp al, '9'
-  1020 000004A5 7602                        jbe .p
-  1021 000004A7 0407                        add al, 7
-  1022 000004A9 E8A8FF                  .p: call putc
-  1023 000004AC C3                          ret
-  1024                                  
-  1025                                  ; -----------------------------------------------------------------
-  1026                                  ; Helper: 4文字のHEXを受信して1ワード(16bit)の数値にする
-  1027                                  ; Input:  Serial (例: "1", "0", "0", "0")
-  1028                                  ; Output: AX = 0x1000
-  1029                                  ; -----------------------------------------------------------------
-  1030                                  get_hex_word:
-  1031 000004AD 53                          push bx
-  1032 000004AE E80B00                      call get_hex_byte_echo
-  1033 000004B1 88C7                        mov bh, al
-  1034 000004B3 E80600                      call get_hex_byte_echo
-  1035 000004B6 88C3                        mov bl, al
-  1036 000004B8 89D8                        mov ax, bx
-  1037 000004BA 5B                          pop bx
-  1038 000004BB C3                          ret
-  1039                                  
-  1040                                  ; 16進数2桁入力　エコーバック有り
-  1041                                  get_hex_byte_echo:
-  1042 000004BC 53                          push bx
-  1043 000004BD E8B6FF                      call getc_echo
-  1044 000004C0 E82500                      call hex_char_to_bin
-  1045 000004C3 C0E004                      shl al, 4
-  1046 000004C6 88C3                        mov bl, al
-  1047 000004C8 E8ABFF                      call getc_echo
-  1048 000004CB E81A00                      call hex_char_to_bin
-  1049 000004CE 08D8                        or al, bl
-  1050 000004D0 5B                          pop bx
-  1051 000004D1 C3                          ret
-  1052                                  
-  1053                                  ; -----------------------------------------------------------------
-  1054                                  ; Helper: 2文字のHEXを受信して1バイトの数値にする
-  1055                                  ; Input:  Serial (例: "3", "F")
-  1056                                  ; Output: AL = 0x3F
-  1057                                  ; -----------------------------------------------------------------
-  1058                                  get_hex_byte:
-  1059 000004D2 53                          push bx             ; BH/BLを使うので退避（メインでアドレス用に使ってるため重要）
+  1002                                  ; -----------------------------------------------------------------
+  1003                                  ; Helper: 1バイトを2文字のHEXで表示 (例: 0x3F -> "3", "F")
+  1004                                  ; Input: AL
+  1005                                  ; -----------------------------------------------------------------
+  1006                                  print_hex_byte:
+  1007 00000498 50                          push ax
+  1008 00000499 51                          push cx
+  1009                                  
+  1010                                      ; 上位バイトの表示
+  1011 0000049A 50                          push ax
+  1012 0000049B C0E804                      shr al, 4
+  1013 0000049E E80900                      call .digit
+  1014                                  
+  1015                                      ; 下位バイトの表示
+  1016 000004A1 58                          pop ax
+  1017 000004A2 240F                        and al, 0x0F
+  1018 000004A4 E80300                      call .digit
+  1019                                  
+  1020 000004A7 59                          pop cx
+  1021 000004A8 58                          pop ax
+  1022 000004A9 C3                          ret
+  1023                                  
+  1024                                  ; 数値を16進数文字に変換して表示 (0-15 -> 0-9, A-F)
+  1025                                  .digit:
+  1026 000004AA 0430                        add al, '0'
+  1027 000004AC 3C39                        cmp al, '9'
+  1028 000004AE 7602                        jbe .p
+  1029 000004B0 0407                        add al, 7
+  1030 000004B2 E8A8FF                  .p: call putc
+  1031 000004B5 C3                          ret
+  1032                                  
+  1033                                  ; -----------------------------------------------------------------
+  1034                                  ; Helper: 4文字のHEXを受信して1ワード(16bit)の数値にする
+  1035                                  ; Input:  Serial (例: "1", "0", "0", "0")
+  1036                                  ; Output: AX = 0x1000
+  1037                                  ; -----------------------------------------------------------------
+  1038                                  get_hex_word:
+  1039 000004B6 53                          push bx
+  1040 000004B7 E80B00                      call get_hex_byte_echo
+  1041 000004BA 88C7                        mov bh, al
+  1042 000004BC E80600                      call get_hex_byte_echo
+  1043 000004BF 88C3                        mov bl, al
+  1044 000004C1 89D8                        mov ax, bx
+  1045 000004C3 5B                          pop bx
+  1046 000004C4 C3                          ret
+  1047                                  
+  1048                                  ; 16進数2桁入力　エコーバック有り
+  1049                                  get_hex_byte_echo:
+  1050 000004C5 53                          push bx
+  1051 000004C6 E8B6FF                      call getc_echo
+  1052 000004C9 E82500                      call hex_char_to_bin
+  1053 000004CC C0E004                      shl al, 4
+  1054 000004CF 88C3                        mov bl, al
+  1055 000004D1 E8ABFF                      call getc_echo
+  1056 000004D4 E81A00                      call hex_char_to_bin
+  1057 000004D7 08D8                        or al, bl
+  1058 000004D9 5B                          pop bx
+  1059 000004DA C3                          ret
   1060                                  
-  1061                                      ; 上位4bit
-  1062 000004D3 E891FF                      call getc
-  1063 000004D6 E80F00                      call hex_char_to_bin
-  1064 000004D9 C0E004                      shl al, 4
-  1065 000004DC 88C3                        mov bl, al          ; 一時保存
-  1066                                      
-  1067                                      ; 下位4bit
-  1068 000004DE E886FF                      call getc
-  1069 000004E1 E80400                      call hex_char_to_bin
-  1070 000004E4 08D8                        or al, bl           ; 上位を合成して結果はALへ
-  1071 000004E6 5B                          pop bx
-  1072 000004E7 C3                          ret
-  1073                                  
-  1074                                  ; -----------------------------------------------------------------
-  1075                                  ; Helper: ASCII文字を数値へ (0-9, A-F -> 0-15)
-  1076                                  ; Input: AL (ASCII)
-  1077                                  ; Output: AL (Binary)
-  1078                                  ; -----------------------------------------------------------------
-  1079                                  hex_char_to_bin:
-  1080 000004E8 2C30                        sub al, '0'
-  1081 000004EA 3C09                        cmp al, 9
-  1082 000004EC 7604                        jbe .done
-  1083 000004EE 2C07                        sub al, 7           ; 'A'-'F'対応
-  1084 000004F0 240F                        and al, 0x0F        ; 小文字対応も含めてざっくりマスク
-  1085                                  .done:
-  1086 000004F2 C3                          ret
-  1087                                  
-  1088                                  ; -----------------------------------------------------------------
-  1089                                  ; Helper: スペースなどを読み飛ばす
-  1090                                  ; -----------------------------------------------------------------
-  1091                                  skip_space:
-  1092 000004F3 E880FF                      call getc_echo
-  1093 000004F6 C3                          ret
-  1094                                  
-  1095                                  ; -----------------------------------------------------------------
-  1096                                  ; Helper: エラーメッセージ出力後モニタに戻る
-  1097                                  ; -----------------------------------------------------------------
-  1098                                  error:
-  1099 000004F7 BE[3A07]                    mov si, msg_error
-  1100 000004FA E849FF                      call puts
-  1101 000004FD E95FFC                      jmp monitor_loop
+  1061                                  ; -----------------------------------------------------------------
+  1062                                  ; Helper: 2文字のHEXを受信して1バイトの数値にする
+  1063                                  ; Input:  Serial (例: "3", "F")
+  1064                                  ; Output: AL = 0x3F
+  1065                                  ; -----------------------------------------------------------------
+  1066                                  get_hex_byte:
+  1067 000004DB 53                          push bx             ; BH/BLを使うので退避（メインでアドレス用に使ってるため重要）
+  1068                                  
+  1069                                      ; 上位4bit
+  1070 000004DC E891FF                      call getc
+  1071 000004DF E80F00                      call hex_char_to_bin
+  1072 000004E2 C0E004                      shl al, 4
+  1073 000004E5 88C3                        mov bl, al          ; 一時保存
+  1074                                      
+  1075                                      ; 下位4bit
+  1076 000004E7 E886FF                      call getc
+  1077 000004EA E80400                      call hex_char_to_bin
+  1078 000004ED 08D8                        or al, bl           ; 上位を合成して結果はALへ
+  1079 000004EF 5B                          pop bx
+  1080 000004F0 C3                          ret
+  1081                                  
+  1082                                  ; -----------------------------------------------------------------
+  1083                                  ; Helper: ASCII文字を数値へ (0-9, A-F -> 0-15)
+  1084                                  ; Input: AL (ASCII)
+  1085                                  ; Output: AL (Binary)
+  1086                                  ; -----------------------------------------------------------------
+  1087                                  hex_char_to_bin:
+  1088 000004F1 2C30                        sub al, '0'
+  1089 000004F3 3C09                        cmp al, 9
+  1090 000004F5 7604                        jbe .done
+  1091 000004F7 2C07                        sub al, 7           ; 'A'-'F'対応
+  1092 000004F9 240F                        and al, 0x0F        ; 小文字対応も含めてざっくりマスク
+  1093                                  .done:
+  1094 000004FB C3                          ret
+  1095                                  
+  1096                                  ; -----------------------------------------------------------------
+  1097                                  ; Helper: スペースなどを読み飛ばす
+  1098                                  ; -----------------------------------------------------------------
+  1099                                  skip_space:
+  1100 000004FC E880FF                      call getc_echo
+  1101 000004FF C3                          ret
   1102                                  
-  1103                                  ;==========================================================
-  1104                                  ; NMI (ABORT) Handler
-  1105                                  ;==========================================================
-  1106                                  
-  1107                                  NMI_Handler:
-  1108                                      ; 1. 全レジスタを退避 (V53は80186互換なのでPUSHAが使えます)
-  1109 00000500 60                          pusha               ; DI, SI, BP, SP, BX, DX, CX, AX の順でPush
-  1110 00000501 1E                          push ds
-  1111 00000502 06                          push es
-  1112                                  
-  1113                                      ; 2. セグメントをモニタ用に設定 (表示ルーチンを使うため)
-  1114 00000503 8CC8                        mov  ax, cs
-  1115 00000505 8ED8                        mov  ds, ax
-  1116 00000507 8EC0                        mov  es, ax
-  1117                                  
-  1118                                      ; 3. スタックフレームへのポインタ設定
-  1119 00000509 89E5                        mov  bp, sp
+  1103                                  ; -----------------------------------------------------------------
+  1104                                  ; Helper: エラーメッセージ出力後モニタに戻る
+  1105                                  ; -----------------------------------------------------------------
+  1106                                  error:
+  1107 00000500 BE[4407]                    mov si, msg_error
+  1108 00000503 E849FF                      call puts
+  1109 00000506 E956FC                      jmp monitor_loop
+  1110                                  
+  1111                                  ;==========================================================
+  1112                                  ; NMI (ABORT) Handler
+  1113                                  ;==========================================================
+  1114                                  
+  1115                                  NMI_Handler:
+  1116                                      ; 1. 全レジスタを退避 (V53は80186互換なのでPUSHAが使えます)
+  1117 00000509 60                          pusha               ; DI, SI, BP, SP, BX, DX, CX, AX の順でPush
+  1118 0000050A 1E                          push ds
+  1119 0000050B 06                          push es
   1120                                  
-  1121                                      ; --- 画面表示 ---
-  1122 0000050B BE[2508]                    mov  si, msg_nmi
-  1123 0000050E E835FF                      call puts           ; " *** ABORT INTERRUPT ***"
-  1124                                  
-  1125                                      ; 3. レジスタ表示 (スタックから読み出して表示)
-  1126                                      ; Stack Layout after pushes:
-  1127                                      ; BP+0: ES
-  1128                                      ; BP+2: DS
-  1129                                      ; BP+4: DI
-  1130                                      ; BP+6: SI
-  1131                                      ; BP+8: BP (Old)
-  1132                                      ; BP+10: SP (Original)
-  1133                                      ; BP+12: BX
-  1134                                      ; BP+14: DX
-  1135                                      ; BP+16: CX
-  1136                                      ; BP+18: AX
-  1137                                      ; BP+20: IP (Return Addr)
-  1138                                      ; BP+22: CS (Return Addr)
-  1139                                      ; BP+24: Flags
-  1140                                      
-  1141                                      ; AX
-  1142 00000511 BE[3D08]                    mov  si, msg_ax
-  1143 00000514 E82FFF                      call puts
-  1144 00000517 8B4612                      mov  ax, [bp+18]        ; PUSHAで保存されたAX
-  1145 0000051A E86BFF                      call print_hex_word     ; 4桁HEX表示ルーチン
-  1146                                  
-  1147                                      ; BX
-  1148 0000051D BE[4208]                    mov  si, msg_bx
-  1149 00000520 E823FF                      call puts
-  1150 00000523 8B460C                      mov  ax, [bp+12]
-  1151 00000526 E85FFF                      call print_hex_word
-  1152                                  
-  1153                                      ; CX
-  1154 00000529 BE[4708]                    mov  si, msg_cx
-  1155 0000052C E817FF                      call puts
-  1156 0000052F 8B4610                      mov  ax, [bp+16]
-  1157 00000532 E853FF                      call print_hex_word
-  1158                                  
-  1159                                      ; DX
-  1160 00000535 BE[4C08]                    mov  si, msg_dx
-  1161 00000538 E80BFF                      call puts
-  1162 0000053B 8B460E                      mov  ax, [bp+14]
-  1163 0000053E E847FF                      call print_hex_word
-  1164                                  
-  1165 00000541 E83BFF                      call putc_crlf
+  1121                                      ; 2. セグメントをモニタ用に設定 (表示ルーチンを使うため)
+  1122 0000050C 8CC8                        mov  ax, cs
+  1123 0000050E 8ED8                        mov  ds, ax
+  1124 00000510 8EC0                        mov  es, ax
+  1125                                  
+  1126                                      ; 3. スタックフレームへのポインタ設定
+  1127 00000512 89E5                        mov  bp, sp
+  1128                                  
+  1129                                      ; --- 画面表示 ---
+  1130 00000514 BE[2F08]                    mov  si, msg_nmi
+  1131 00000517 E835FF                      call puts           ; " *** ABORT INTERRUPT ***"
+  1132                                  
+  1133                                      ; 3. レジスタ表示 (スタックから読み出して表示)
+  1134                                      ; Stack Layout after pushes:
+  1135                                      ; BP+0: ES
+  1136                                      ; BP+2: DS
+  1137                                      ; BP+4: DI
+  1138                                      ; BP+6: SI
+  1139                                      ; BP+8: BP (Old)
+  1140                                      ; BP+10: SP (Original)
+  1141                                      ; BP+12: BX
+  1142                                      ; BP+14: DX
+  1143                                      ; BP+16: CX
+  1144                                      ; BP+18: AX
+  1145                                      ; BP+20: IP (Return Addr)
+  1146                                      ; BP+22: CS (Return Addr)
+  1147                                      ; BP+24: Flags
+  1148                                      
+  1149                                      ; AX
+  1150 0000051A BE[4708]                    mov  si, msg_ax
+  1151 0000051D E82FFF                      call puts
+  1152 00000520 8B4612                      mov  ax, [bp+18]        ; PUSHAで保存されたAX
+  1153 00000523 E86BFF                      call print_hex_word     ; 4桁HEX表示ルーチン
+  1154                                  
+  1155                                      ; BX
+  1156 00000526 BE[4C08]                    mov  si, msg_bx
+  1157 00000529 E823FF                      call puts
+  1158 0000052C 8B460C                      mov  ax, [bp+12]
+  1159 0000052F E85FFF                      call print_hex_word
+  1160                                  
+  1161                                      ; CX
+  1162 00000532 BE[5108]                    mov  si, msg_cx
+  1163 00000535 E817FF                      call puts
+  1164 00000538 8B4610                      mov  ax, [bp+16]
+  1165 0000053B E853FF                      call print_hex_word
   1166                                  
-  1167                                      ; --- 中断地点 (CS:IP) の表示 ---
-  1168                                      ; PUSHA(16byte) + DS(2) + ES(2) = 20byte
-  1169                                      ; その上が割り込み発生時の IP, CS, Flags です
-  1170                                      
-  1171 00000544 BE[5108]                    mov  si, msg_addr
-  1172 00000547 E8FCFE                      call puts           ; " Stop at "
-  1173 0000054A 8B4616                      mov  ax, [bp+22]    ; Stack上の CS
-  1174 0000054D E838FF                      call print_hex_word
-  1175 00000550 B03A                        mov  al, ':'
-  1176 00000552 E8FFFE                      call putc
-  1177 00000555 8B4614                      mov  ax, [bp+20]    ; Stack上の IP
-  1178 00000558 E82DFF                      call print_hex_word
-  1179                                  
-  1180 0000055B E821FF                      call putc_crlf
-  1181                                  
-  1182                                      ; 4. 復帰処理
-  1183                                      ; ここでモニタのコマンド待ちへ強制ジャンプします
-  1184                                      ; (レジスタはスタックに残ったままになりますが、モニタ再起動でリセットされる前提)
-  1185 0000055E E99FFA                      jmp  start  ; モニタの開始ラベルへ
-  1186                                  
-  1187                                  ; ==========================================================
-  1188                                  ; Default Interrupt Handler (Trap for unused interrupts)
-  1189                                  ; ==========================================================
-  1190                                  
-  1191                                  ; --- 共通処理部 (Common Handler) ---
-  1192                                  _default_int_handler:
-  1193                                      ; 1. 全レジスタを退避 (V53は80186互換なのでPUSHAが使えます)
-  1194 00000561 55                          push bp
-  1195 00000562 60                          pusha               ; DI, SI, BP, SP, BX, DX, CX, AX の順でPush
-  1196 00000563 1E                          push ds
-  1197 00000564 06                          push es
+  1167                                      ; DX
+  1168 0000053E BE[5608]                    mov  si, msg_dx
+  1169 00000541 E80BFF                      call puts
+  1170 00000544 8B460E                      mov  ax, [bp+14]
+  1171 00000547 E847FF                      call print_hex_word
+  1172                                  
+  1173 0000054A E83BFF                      call putc_crlf
+  1174                                  
+  1175                                      ; --- 中断地点 (CS:IP) の表示 ---
+  1176                                      ; PUSHA(16byte) + DS(2) + ES(2) = 20byte
+  1177                                      ; その上が割り込み発生時の IP, CS, Flags です
+  1178                                      
+  1179 0000054D BE[5B08]                    mov  si, msg_addr
+  1180 00000550 E8FCFE                      call puts           ; " Stop at "
+  1181 00000553 8B4616                      mov  ax, [bp+22]    ; Stack上の CS
+  1182 00000556 E838FF                      call print_hex_word
+  1183 00000559 B03A                        mov  al, ':'
+  1184 0000055B E8FFFE                      call putc
+  1185 0000055E 8B4614                      mov  ax, [bp+20]    ; Stack上の IP
+  1186 00000561 E82DFF                      call print_hex_word
+  1187                                  
+  1188 00000564 E821FF                      call putc_crlf
+  1189                                  
+  1190                                      ; 4. 復帰処理
+  1191                                      ; ここでモニタのコマンド待ちへ強制ジャンプします
+  1192                                      ; (レジスタはスタックに残ったままになりますが、モニタ再起動でリセットされる前提)
+  1193 00000567 E996FA                      jmp  start  ; モニタの開始ラベルへ
+  1194                                  
+  1195                                  ; ==========================================================
+  1196                                  ; Default Interrupt Handler (Trap for unused interrupts)
+  1197                                  ; ==========================================================
   1198                                  
-  1199                                      ; 2. セグメントをモニタ用に設定 (表示ルーチンを使うため)
-  1200 00000565 8CC8                        mov  ax, cs
-  1201 00000567 8ED8                        mov  ds, ax
-  1202 00000569 8EC0                        mov  es, ax
-  1203                                  
-  1204                                      ; 3. スタックフレームへのポインタ設定
-  1205 0000056B 89E5                        mov  bp, sp
+  1199                                  ; --- 共通処理部 (Common Handler) ---
+  1200                                  _default_int_handler:
+  1201                                      ; 1. 全レジスタを退避 (V53は80186互換なのでPUSHAが使えます)
+  1202 0000056A 55                          push bp
+  1203 0000056B 60                          pusha               ; DI, SI, BP, SP, BX, DX, CX, AX の順でPush
+  1204 0000056C 1E                          push ds
+  1205 0000056D 06                          push es
   1206                                  
-  1207                                      ; --- メッセージ表示 ---
-  1208 0000056D BE[6308]                    mov  si, msg_int_trap
-  1209 00000570 E8D3FE                      call puts           ; "** INT "
-  1210                                  
-  1211                                      ; --- ベクタ番号の表示 ---
-  1212                                      ; スタック構造:
-  1213                                      ; [BP+0] Old BP
-  1214                                      ; [BP+2] Vector Number (スタブでPUSHした値: 16bit)
-  1215                                      ; [BP+4] Return IP ...
-  1216                                      
-  1217 00000573 8B4602                      mov  ax, [bp+2]     ; ベクタ番号を取得
-  1218 00000576 E816FF                      call print_hex_byte ; 表示 (例: 25)
-  1219                                  
-  1220 00000579 BE[6B08]                    mov  si, msg_detected
-  1221 0000057C E8C7FE                      call puts           ; " detected **" (改行含む)
-  1222                                  
-  1223                                  ; 3. レジスタ表示 (スタックから読み出して表示)
-  1224                                      ; Stack Layout after pushes:
-  1225                                      ; BP+0: ES
-  1226                                      ; BP+2: DS
-  1227                                      ; BP+4: DI
-  1228                                      ; BP+6: SI
-  1229                                      ; BP+8: BP (Old)
-  1230                                      ; BP+10: SP (Original)
-  1231                                      ; BP+12: BX
-  1232                                      ; BP+14: DX
-  1233                                      ; BP+16: CX
-  1234                                      ; BP+18: AX
-  1235                                      ; BP+20: IP (Return Addr)
-  1236                                      ; BP+22: CS (Return Addr)
-  1237                                      ; BP+24: Flags
-  1238                                      
-  1239                                      ; AX
-  1240 0000057F BE[3D08]                    mov  si, msg_ax
-  1241 00000582 E8C1FE                      call puts
-  1242 00000585 8B4612                      mov  ax, [bp+18]        ; PUSHAで保存されたAX
-  1243 00000588 E8FDFE                      call print_hex_word     ; 4桁HEX表示ルーチン
-  1244                                  
-  1245                                      ; BX
-  1246 0000058B BE[4208]                    mov  si, msg_bx
-  1247 0000058E E8B5FE                      call puts
-  1248 00000591 8B460C                      mov  ax, [bp+12]
-  1249 00000594 E8F1FE                      call print_hex_word
-  1250                                  
-  1251                                      ; CX
-  1252 00000597 BE[4708]                    mov  si, msg_cx
-  1253 0000059A E8A9FE                      call puts
-  1254 0000059D 8B4610                      mov  ax, [bp+16]
-  1255 000005A0 E8E5FE                      call print_hex_word
-  1256                                  
-  1257                                      ; DX
-  1258 000005A3 BE[4C08]                    mov  si, msg_dx
-  1259 000005A6 E89DFE                      call puts
-  1260 000005A9 8B460E                      mov  ax, [bp+14]
-  1261 000005AC E8D9FE                      call print_hex_word
-  1262                                  
-  1263 000005AF E8CDFE                      call putc_crlf
+  1207                                      ; 2. セグメントをモニタ用に設定 (表示ルーチンを使うため)
+  1208 0000056E 8CC8                        mov  ax, cs
+  1209 00000570 8ED8                        mov  ds, ax
+  1210 00000572 8EC0                        mov  es, ax
+  1211                                  
+  1212                                      ; 3. スタックフレームへのポインタ設定
+  1213 00000574 89E5                        mov  bp, sp
+  1214                                  
+  1215                                      ; --- メッセージ表示 ---
+  1216 00000576 BE[6D08]                    mov  si, msg_int_trap
+  1217 00000579 E8D3FE                      call puts           ; "** INT "
+  1218                                  
+  1219                                      ; --- ベクタ番号の表示 ---
+  1220                                      ; スタック構造:
+  1221                                      ; [BP+0] Old BP
+  1222                                      ; [BP+2] Vector Number (スタブでPUSHした値: 16bit)
+  1223                                      ; [BP+4] Return IP ...
+  1224                                      
+  1225 0000057C 8B4602                      mov  ax, [bp+2]     ; ベクタ番号を取得
+  1226 0000057F E816FF                      call print_hex_byte ; 表示 (例: 25)
+  1227                                  
+  1228 00000582 BE[7508]                    mov  si, msg_detected
+  1229 00000585 E8C7FE                      call puts           ; " detected **" (改行含む)
+  1230                                  
+  1231                                  ; 3. レジスタ表示 (スタックから読み出して表示)
+  1232                                      ; Stack Layout after pushes:
+  1233                                      ; BP+0: ES
+  1234                                      ; BP+2: DS
+  1235                                      ; BP+4: DI
+  1236                                      ; BP+6: SI
+  1237                                      ; BP+8: BP (Old)
+  1238                                      ; BP+10: SP (Original)
+  1239                                      ; BP+12: BX
+  1240                                      ; BP+14: DX
+  1241                                      ; BP+16: CX
+  1242                                      ; BP+18: AX
+  1243                                      ; BP+20: IP (Return Addr)
+  1244                                      ; BP+22: CS (Return Addr)
+  1245                                      ; BP+24: Flags
+  1246                                      
+  1247                                      ; AX
+  1248 00000588 BE[4708]                    mov  si, msg_ax
+  1249 0000058B E8C1FE                      call puts
+  1250 0000058E 8B4612                      mov  ax, [bp+18]        ; PUSHAで保存されたAX
+  1251 00000591 E8FDFE                      call print_hex_word     ; 4桁HEX表示ルーチン
+  1252                                  
+  1253                                      ; BX
+  1254 00000594 BE[4C08]                    mov  si, msg_bx
+  1255 00000597 E8B5FE                      call puts
+  1256 0000059A 8B460C                      mov  ax, [bp+12]
+  1257 0000059D E8F1FE                      call print_hex_word
+  1258                                  
+  1259                                      ; CX
+  1260 000005A0 BE[5108]                    mov  si, msg_cx
+  1261 000005A3 E8A9FE                      call puts
+  1262 000005A6 8B4610                      mov  ax, [bp+16]
+  1263 000005A9 E8E5FE                      call print_hex_word
   1264                                  
-  1265                                      ; --- 中断地点 (CS:IP) の表示 ---
-  1266                                      ; PUSHA(16byte) + DS(2) + ES(2) = 20byte
-  1267                                      ; その上が割り込み発生時の IP, CS, Flags です
-  1268                                      
-  1269 000005B2 BE[5108]                    mov  si, msg_addr
-  1270 000005B5 E88EFE                      call puts           ; " Stop at "
-  1271 000005B8 8B4616                      mov  ax, [bp+22]    ; Stack上の CS
-  1272 000005BB E8CAFE                      call print_hex_word
-  1273 000005BE B03A                        mov  al, ':'
-  1274 000005C0 E891FE                      call putc
-  1275 000005C3 8B4614                      mov  ax, [bp+20]    ; Stack上の IP
-  1276 000005C6 E8BFFE                      call print_hex_word
-  1277                                  
-  1278 000005C9 E8B3FE                      call putc_crlf
-  1279                                  
-  1280                                      ; --- EOI (End of Interrupt) to PIC, ICU ---
-  1281 000005CC B020                        mov al, 20h         ; Non-specific EOI
-  1282 000005CE E6C8                        out PIC_REG0, al    ; 外部PIC (Slave) の割り込み完了
-  1283 000005D0 BA8020                      mov dx, ICU_REG0    ; V53内蔵ICU (Master) の割り込み完了
-  1284 000005D3 EE                          out dx, al
+  1265                                      ; DX
+  1266 000005AC BE[5608]                    mov  si, msg_dx
+  1267 000005AF E89DFE                      call puts
+  1268 000005B2 8B460E                      mov  ax, [bp+14]
+  1269 000005B5 E8D9FE                      call print_hex_word
+  1270                                  
+  1271 000005B8 E8CDFE                      call putc_crlf
+  1272                                  
+  1273                                      ; --- 中断地点 (CS:IP) の表示 ---
+  1274                                      ; PUSHA(16byte) + DS(2) + ES(2) = 20byte
+  1275                                      ; その上が割り込み発生時の IP, CS, Flags です
+  1276                                      
+  1277 000005BB BE[5B08]                    mov  si, msg_addr
+  1278 000005BE E88EFE                      call puts           ; " Stop at "
+  1279 000005C1 8B4616                      mov  ax, [bp+22]    ; Stack上の CS
+  1280 000005C4 E8CAFE                      call print_hex_word
+  1281 000005C7 B03A                        mov  al, ':'
+  1282 000005C9 E891FE                      call putc
+  1283 000005CC 8B4614                      mov  ax, [bp+20]    ; Stack上の IP
+  1284 000005CF E8BFFE                      call print_hex_word
   1285                                  
-  1286 000005D4 07                          pop  es
-  1287 000005D5 1F                          pop  ds
-  1288 000005D6 61                          popa
-  1289 000005D7 5D                          pop  bp
-  1290 000005D8 83C402                      add  sp, 2          ; スタブでPUSHしたベクタ番号分(2byte)をスタックから捨てる
-  1291 000005DB CF                          iret
-  1292                                  
-  1293                                  ; --- 各ベクタ用スタブ (Entry Points) ---
-  1294                                  ; ベクタ番号をスタックに積んで共通処理へジャンプします
-  1295                                  
-  1296 000005DC 6A00                    _isr_stub_0:  push 0x0          ; 0: Division by zero
-  1297 000005DE EB81                                  jmp _default_int_handler
-  1298 000005E0 6A01                    _isr_stub_1:  push 0x1          ; 1: Break flag
-  1299 000005E2 E97CFF                                jmp _default_int_handler
-  1300                                                                  ; 2: NMI
-  1301 000005E5 6A03                    _isr_stub_3:  push 0x3          ; 3: BRK3
-  1302 000005E7 E977FF                                jmp _default_int_handler
-  1303 000005EA 6A04                    _isr_stub_4:  push 0x4          ; 4: BRKV
-  1304 000005EC E972FF                                jmp _default_int_handler
-  1305 000005EF 6A05                    _isr_stub_5:  push 0x5          ; 5: CHKIND
-  1306 000005F1 E96DFF                                jmp _default_int_handler
-  1307                                  
-  1308 000005F4 6A20                    _isr_stub_20: push 0x0020       ; 32: ICU INTP0
-  1309 000005F6 E968FF                                jmp _default_int_handler
-  1310 000005F9 6A21                    _isr_stub_21: push 0x0021       ; 33: ICU INTP1
-  1311 000005FB E963FF                                jmp _default_int_handler
-  1312 000005FE 6A22                    _isr_stub_22: push 0x0022       ; 34: ICU INTP2
-  1313 00000600 E95EFF                                jmp _default_int_handler
-  1314 00000603 6A23                    _isr_stub_23: push 0x0023       ; 35: ICU INTP3
-  1315 00000605 E959FF                                jmp _default_int_handler
-  1316 00000608 6A24                    _isr_stub_24: push 0x0024       ; 36: ICU INTP4
-  1317 0000060A E954FF                                jmp _default_int_handler
-  1318 0000060D 6A25                    _isr_stub_25: push 0x0025       ; 37: ICU INTP5
-  1319 0000060F E94FFF                                jmp _default_int_handler
-  1320 00000612 6A26                    _isr_stub_26: push 0x0026       ; 38: ICU INTP6
-  1321 00000614 E94AFF                                jmp _default_int_handler
-  1322                                  
-  1323                                  ; Note: Vector 27h (INTP7) は _pic_dispatch_handler で使用中なのでここには含めません
-  1324                                  
-  1325                                  ; ==========================================================
-  1326                                  ; PIC Dispatch Handler (Vector 27h)
-  1327                                  ; Handles: Timer, Serial, SCSI, PPI via PIC uPD71059
-  1328                                  ; ==========================================================
-  1329                                  _pic_dispatch_handler:
-  1330 00000617 60                          pusha
-  1331 00000618 1E                          push ds
-  1332 00000619 06                          push es
-  1333                                  
-  1334                                      ; DS設定 (Tiny Model)
-  1335 0000061A 8CC8                        mov ax, cs
-  1336 0000061C 8ED8                        mov ds, ax
-  1337                                  
-  1338                                      ; --- 1. PICのISR (In-Service Register) を読む ---
-  1339                                      ; OCW3: 0000_1011 (0x0B) -> RR=1, RIS=1 (Read ISR)
-  1340 0000061E B00B                        mov al, 0x0B
-  1341 00000620 E6C8                        out PIC_REG0, al
-  1342 00000622 E4C8                        in  al, PIC_REG0    ; AL = 現在処理中の割り込みビット (ISR)
-  1343                                  
-  1344                                      ; --- 2. 要因判定と分岐 ---
-  1345                                      
-  1346 00000624 A801                        test al, 01h        ; Bit 0: Timer 0 (System Tick)
-  1347 00000626 751E                        jnz .handle_timer0
-  1348                                  
-  1349 00000628 A802                        test al, 02h        ; Bit 1: SCSI
-  1350 0000062A 7526                        jnz .handle_scsi
+  1286 000005D2 E8B3FE                      call putc_crlf
+  1287                                  
+  1288                                      ; --- EOI (End of Interrupt) to PIC, ICU ---
+  1289 000005D5 B020                        mov al, 20h         ; Non-specific EOI
+  1290 000005D7 E6C8                        out PIC_REG0, al    ; 外部PIC (Slave) の割り込み完了
+  1291 000005D9 BA8020                      mov dx, ICU_REG0    ; V53内蔵ICU (Master) の割り込み完了
+  1292 000005DC EE                          out dx, al
+  1293                                  
+  1294 000005DD 07                          pop  es
+  1295 000005DE 1F                          pop  ds
+  1296 000005DF 61                          popa
+  1297 000005E0 5D                          pop  bp
+  1298 000005E1 83C402                      add  sp, 2          ; スタブでPUSHしたベクタ番号分(2byte)をスタックから捨てる
+  1299 000005E4 CF                          iret
+  1300                                  
+  1301                                  ; --- 各ベクタ用スタブ (Entry Points) ---
+  1302                                  ; ベクタ番号をスタックに積んで共通処理へジャンプします
+  1303                                  
+  1304 000005E5 6A00                    _isr_stub_0:  push 0x0          ; 0: Division by zero
+  1305 000005E7 EB81                                  jmp _default_int_handler
+  1306 000005E9 6A01                    _isr_stub_1:  push 0x1          ; 1: Break flag
+  1307 000005EB E97CFF                                jmp _default_int_handler
+  1308                                                                  ; 2: NMI
+  1309 000005EE 6A03                    _isr_stub_3:  push 0x3          ; 3: BRK3
+  1310 000005F0 E977FF                                jmp _default_int_handler
+  1311 000005F3 6A04                    _isr_stub_4:  push 0x4          ; 4: BRKV
+  1312 000005F5 E972FF                                jmp _default_int_handler
+  1313 000005F8 6A05                    _isr_stub_5:  push 0x5          ; 5: CHKIND
+  1314 000005FA E96DFF                                jmp _default_int_handler
+  1315                                  
+  1316 000005FD 6A20                    _isr_stub_20: push 0x0020       ; 32: ICU INTP0
+  1317 000005FF E968FF                                jmp _default_int_handler
+  1318 00000602 6A21                    _isr_stub_21: push 0x0021       ; 33: ICU INTP1
+  1319 00000604 E963FF                                jmp _default_int_handler
+  1320 00000607 6A22                    _isr_stub_22: push 0x0022       ; 34: ICU INTP2
+  1321 00000609 E95EFF                                jmp _default_int_handler
+  1322 0000060C 6A23                    _isr_stub_23: push 0x0023       ; 35: ICU INTP3
+  1323 0000060E E959FF                                jmp _default_int_handler
+  1324 00000611 6A24                    _isr_stub_24: push 0x0024       ; 36: ICU INTP4
+  1325 00000613 E954FF                                jmp _default_int_handler
+  1326 00000616 6A25                    _isr_stub_25: push 0x0025       ; 37: ICU INTP5
+  1327 00000618 E94FFF                                jmp _default_int_handler
+  1328 0000061B 6A26                    _isr_stub_26: push 0x0026       ; 38: ICU INTP6
+  1329 0000061D E94AFF                                jmp _default_int_handler
+  1330                                  
+  1331                                  ; Note: Vector 27h (INTP7) は _pic_dispatch_handler で使用中なのでここには含めません
+  1332                                  
+  1333                                  ; ==========================================================
+  1334                                  ; PIC Dispatch Handler (Vector 27h)
+  1335                                  ; Handles: Timer, Serial, SCSI, PPI via PIC uPD71059
+  1336                                  ; ==========================================================
+  1337                                  _pic_dispatch_handler:
+  1338 00000620 60                          pusha
+  1339 00000621 1E                          push ds
+  1340 00000622 06                          push es
+  1341                                  
+  1342                                      ; DS設定 (Tiny Model)
+  1343 00000623 8CC8                        mov ax, cs
+  1344 00000625 8ED8                        mov ds, ax
+  1345                                  
+  1346                                      ; --- 1. PICのISR (In-Service Register) を読む ---
+  1347                                      ; OCW3: 0000_1011 (0x0B) -> RR=1, RIS=1 (Read ISR)
+  1348 00000627 B00B                        mov al, 0x0B
+  1349 00000629 E6C8                        out PIC_REG0, al
+  1350 0000062B E4C8                        in  al, PIC_REG0    ; AL = 現在処理中の割り込みビット (ISR)
   1351                                  
-  1352 0000062C A804                        test al, 04h        ; Bit 2: Timer 1
-  1353 0000062E 752A                        jnz .handle_timer1
-  1354                                  
-  1355 00000630 A808                        test al, 08h        ; Bit 3: USART Rx
-  1356 00000632 752E                        jnz .handle_usart_rx
-  1357                                  
-  1358 00000634 A810                        test al, 10h        ; Bit 4: USART Tx
-  1359 00000636 7532                        jnz .handle_usart_tx
-  1360                                  
-  1361 00000638 A820                        test al, 20h        ; Bit 5: SCU Rx
-  1362 0000063A 7536                        jnz .handle_scu_rx
-  1363                                  
-  1364 0000063C A840                        test al, 40h        ; Bit 6: SCU Tx
-  1365 0000063E 753A                        jnz .handle_scu_tx
-  1366                                  
-  1367 00000640 A880                        test al, 80h        ; Bit 7: PPI
-  1368 00000642 753E                        jnz .handle_ppi
-  1369                                  
-  1370                                      ; 該当なしの場合は無視
-  1371 00000644 EB44                        jmp .eoi_exit
-  1372                                  
-  1373                                  ; --- 各ハンドラ処理 ---
+  1352                                      ; --- 2. 要因判定と分岐 ---
+  1353                                      
+  1354 0000062D A801                        test al, 01h        ; Bit 0: Timer 0 (System Tick)
+  1355 0000062F 751E                        jnz .handle_timer0
+  1356                                  
+  1357 00000631 A802                        test al, 02h        ; Bit 1: SCSI
+  1358 00000633 7526                        jnz .handle_scsi
+  1359                                  
+  1360 00000635 A804                        test al, 04h        ; Bit 2: Timer 1
+  1361 00000637 752A                        jnz .handle_timer1
+  1362                                  
+  1363 00000639 A808                        test al, 08h        ; Bit 3: USART Rx
+  1364 0000063B 752E                        jnz .handle_usart_rx
+  1365                                  
+  1366 0000063D A810                        test al, 10h        ; Bit 4: USART Tx
+  1367 0000063F 7532                        jnz .handle_usart_tx
+  1368                                  
+  1369 00000641 A820                        test al, 20h        ; Bit 5: SCU Rx
+  1370 00000643 7536                        jnz .handle_scu_rx
+  1371                                  
+  1372 00000645 A840                        test al, 40h        ; Bit 6: SCU Tx
+  1373 00000647 753A                        jnz .handle_scu_tx
   1374                                  
-  1375                                  .handle_timer0:
-  1376                                      ; INTP0: Timer 0 (Tick)
-  1377                                      ; --- 32bit カウンタのインクリメント ---
-  1378 00000646 FF06[4A09]                  inc word [tick_counter_lo]
-  1379 0000064A 7504                        jnz .skip_carry
-  1380 0000064C FF06[4C09]                  inc word [tick_counter_hi]
-  1381                                  .skip_carry:
-  1382 00000650 EB38                        jmp .eoi_exit
-  1383                                  
-  1384                                  .handle_scsi:
-  1385                                      ; INTP1: SCSIC
-  1386 00000652 BE[7808]                    mov si, msg_int_scsi
-  1387 00000655 E8EEFD                      call puts
-  1388 00000658 EB30                        jmp .eoi_exit
-  1389                                  
-  1390                                  .handle_timer1:
-  1391                                      ; INTP2: ユーザ用タイマー
-  1392 0000065A BE[8F08]                    mov si, msg_int_timer1
-  1393 0000065D E8E6FD                      call puts
-  1394 00000660 EB28                        jmp .eoi_exit
-  1395                                  
-  1396                                  .handle_usart_rx:
-  1397                                      ; INTP3: USART受信準備完了割り込み
-  1398 00000662 BE[A808]                    mov si, msg_int_usart_rx
-  1399 00000665 E8DEFD                      call puts
-  1400 00000668 EB20                        jmp .eoi_exit
-  1401                                  
-  1402                                  .handle_usart_tx:
-  1403                                      ; INTP4: USART送信完了割り込み
-  1404 0000066A BE[C308]                    mov si, msg_int_usart_tx
-  1405 0000066D E8D6FD                      call puts
-  1406 00000670 EB18                        jmp .eoi_exit
-  1407                                  
-  1408                                  .handle_scu_rx:
-  1409                                      ; INTP5: SCU受信準備完了割り込み
-  1410 00000672 BE[DE08]                    mov si, msg_int_scu_rx
-  1411 00000675 E8CEFD                      call puts
-  1412 00000678 EB10                        jmp .eoi_exit
-  1413                                  
-  1414                                  .handle_scu_tx:
-  1415                                      ; INTP6: SCU送信完了割り込み
-  1416 0000067A BE[F708]                    mov si, msg_int_scu_tx
-  1417 0000067D E8C6FD                      call puts
-  1418 00000680 EB08                        jmp .eoi_exit
-  1419                                  
-  1420                                  .handle_ppi:
-  1421                                      ; INTP7: PPI割り込み
-  1422 00000682 BE[1009]                    mov si, msg_int_ppi
-  1423 00000685 E8BEFD                      call puts
-  1424 00000688 EB00                        jmp .eoi_exit
-  1425                                  
-  1426                                  ; --- 終了処理 ---
-  1427                                  .eoi_exit:
-  1428                                      ; --- EOI (End of Interrupt) to PIC ---
-  1429 0000068A B020                        mov al, 20h     ; Non-specific EOI
-  1430                                  
-  1431                                      ; 外部PIC (Slave) の割り込み完了
-  1432 0000068C E6C8                        out PIC_REG0, al
+  1375 00000649 A880                        test al, 80h        ; Bit 7: PPI
+  1376 0000064B 753E                        jnz .handle_ppi
+  1377                                  
+  1378                                      ; 該当なしの場合は無視
+  1379 0000064D EB44                        jmp .eoi_exit
+  1380                                  
+  1381                                  ; --- 各ハンドラ処理 ---
+  1382                                  
+  1383                                  .handle_timer0:
+  1384                                      ; INTP0: Timer 0 (Tick)
+  1385                                      ; --- 32bit カウンタのインクリメント ---
+  1386 0000064F FF06[5409]                  inc word [tick_counter_lo]
+  1387 00000653 7504                        jnz .skip_carry
+  1388 00000655 FF06[5609]                  inc word [tick_counter_hi]
+  1389                                  .skip_carry:
+  1390 00000659 EB38                        jmp .eoi_exit
+  1391                                  
+  1392                                  .handle_scsi:
+  1393                                      ; INTP1: SCSIC
+  1394 0000065B BE[8208]                    mov si, msg_int_scsi
+  1395 0000065E E8EEFD                      call puts
+  1396 00000661 EB30                        jmp .eoi_exit
+  1397                                  
+  1398                                  .handle_timer1:
+  1399                                      ; INTP2: ユーザ用タイマー
+  1400 00000663 BE[9908]                    mov si, msg_int_timer1
+  1401 00000666 E8E6FD                      call puts
+  1402 00000669 EB28                        jmp .eoi_exit
+  1403                                  
+  1404                                  .handle_usart_rx:
+  1405                                      ; INTP3: USART受信準備完了割り込み
+  1406 0000066B BE[B208]                    mov si, msg_int_usart_rx
+  1407 0000066E E8DEFD                      call puts
+  1408 00000671 EB20                        jmp .eoi_exit
+  1409                                  
+  1410                                  .handle_usart_tx:
+  1411                                      ; INTP4: USART送信完了割り込み
+  1412 00000673 BE[CD08]                    mov si, msg_int_usart_tx
+  1413 00000676 E8D6FD                      call puts
+  1414 00000679 EB18                        jmp .eoi_exit
+  1415                                  
+  1416                                  .handle_scu_rx:
+  1417                                      ; INTP5: SCU受信準備完了割り込み
+  1418 0000067B BE[E808]                    mov si, msg_int_scu_rx
+  1419 0000067E E8CEFD                      call puts
+  1420 00000681 EB10                        jmp .eoi_exit
+  1421                                  
+  1422                                  .handle_scu_tx:
+  1423                                      ; INTP6: SCU送信完了割り込み
+  1424 00000683 BE[0109]                    mov si, msg_int_scu_tx
+  1425 00000686 E8C6FD                      call puts
+  1426 00000689 EB08                        jmp .eoi_exit
+  1427                                  
+  1428                                  .handle_ppi:
+  1429                                      ; INTP7: PPI割り込み
+  1430 0000068B BE[1A09]                    mov si, msg_int_ppi
+  1431 0000068E E8BEFD                      call puts
+  1432 00000691 EB00                        jmp .eoi_exit
   1433                                  
-  1434                                      ; V53内蔵ICU (Master) の割り込み完了
-  1435 0000068E BA8020                      mov dx, ICU_REG0 
-  1436 00000691 EE                          out dx, al
-  1437                                  
-  1438 00000692 07                          pop es
-  1439 00000693 1F                          pop ds
-  1440 00000694 61                          popa
-  1441 00000695 CF                          iret
-  1442                                  
-  1443                                  ;--------------------------------------
-  1444                                  ; 未定義割り込みベクタ用の簡易トラップ
-  1445                                  ;--------------------------------------
-  1446                                  _default_int_unknown_handler:
-  1447                                      ; 想定外の割り込みが発生したため、
-  1448                                      ; 画面に "UNKNOWN INT" と出して停止する
-  1449 00000696 FA                          cli                 ; 多重割り込み禁止
+  1434                                  ; --- 終了処理 ---
+  1435                                  .eoi_exit:
+  1436                                      ; --- EOI (End of Interrupt) to PIC ---
+  1437 00000693 B020                        mov al, 20h     ; Non-specific EOI
+  1438                                  
+  1439                                      ; 外部PIC (Slave) の割り込み完了
+  1440 00000695 E6C8                        out PIC_REG0, al
+  1441                                  
+  1442                                      ; V53内蔵ICU (Master) の割り込み完了
+  1443 00000697 BA8020                      mov dx, ICU_REG0 
+  1444 0000069A EE                          out dx, al
+  1445                                  
+  1446 0000069B 07                          pop es
+  1447 0000069C 1F                          pop ds
+  1448 0000069D 61                          popa
+  1449 0000069E CF                          iret
   1450                                  
-  1451                                      ; 1. 全レジスタを退避 (V53は80186互換なのでPUSHAが使えます)
-  1452 00000697 60                          pusha               ; DI, SI, BP, SP, BX, DX, CX, AX の順でPush
-  1453 00000698 1E                          push ds
-  1454 00000699 06                          push es
-  1455                                  
-  1456                                      ; 2. セグメントをモニタ用に設定 (表示ルーチンを使うため)
-  1457 0000069A 8CC8                        mov  ax, cs
-  1458 0000069C 8ED8                        mov  ds, ax
-  1459 0000069E 8EC0                        mov  es, ax
-  1460                                  
-  1461                                      ; 3. スタックフレームへのポインタ設定
-  1462 000006A0 89E5                        mov  bp, sp
+  1451                                  ;--------------------------------------
+  1452                                  ; 未定義割り込みベクタ用の簡易トラップ
+  1453                                  ;--------------------------------------
+  1454                                  _default_int_unknown_handler:
+  1455                                      ; 想定外の割り込みが発生したため、
+  1456                                      ; 画面に "UNKNOWN INT" と出して停止する
+  1457 0000069F FA                          cli                 ; 多重割り込み禁止
+  1458                                  
+  1459                                      ; 1. 全レジスタを退避 (V53は80186互換なのでPUSHAが使えます)
+  1460 000006A0 60                          pusha               ; DI, SI, BP, SP, BX, DX, CX, AX の順でPush
+  1461 000006A1 1E                          push ds
+  1462 000006A2 06                          push es
   1463                                  
-  1464 000006A2 BE[2609]                    mov si, msg_unknown_int
-  1465 000006A5 E89EFD                      call puts
-  1466                                  
-  1467                                      ; 3. レジスタ表示 (スタックから読み出して表示)
-  1468                                      ; Stack Layout after pushes:
-  1469                                      ; BP+0: ES
-  1470                                      ; BP+2: DS
-  1471                                      ; BP+4: DI
-  1472                                      ; BP+6: SI
-  1473                                      ; BP+8: BP (Old)
-  1474                                      ; BP+10: SP (Original)
-  1475                                      ; BP+12: BX
-  1476                                      ; BP+14: DX
-  1477                                      ; BP+16: CX
-  1478                                      ; BP+18: AX
-  1479                                      ; BP+20: IP (Return Addr)
-  1480                                      ; BP+22: CS (Return Addr)
-  1481                                      ; BP+24: Flags
-  1482                                      
-  1483                                      ; AX
-  1484 000006A8 BE[3D08]                    mov  si, msg_ax
-  1485 000006AB E898FD                      call puts
-  1486 000006AE 8B4612                      mov  ax, [bp+18]        ; PUSHAで保存されたAX
-  1487 000006B1 E8D4FD                      call print_hex_word     ; 4桁HEX表示ルーチン
-  1488                                  
-  1489                                      ; BX
-  1490 000006B4 BE[4208]                    mov  si, msg_bx
-  1491 000006B7 E88CFD                      call puts
-  1492 000006BA 8B460C                      mov  ax, [bp+12]
-  1493 000006BD E8C8FD                      call print_hex_word
-  1494                                  
-  1495                                      ; CX
-  1496 000006C0 BE[4708]                    mov  si, msg_cx
-  1497 000006C3 E880FD                      call puts
-  1498 000006C6 8B4610                      mov  ax, [bp+16]
-  1499 000006C9 E8BCFD                      call print_hex_word
-  1500                                  
-  1501                                      ; DX
-  1502 000006CC BE[4C08]                    mov  si, msg_dx
-  1503 000006CF E874FD                      call puts
-  1504 000006D2 8B460E                      mov  ax, [bp+14]
-  1505 000006D5 E8B0FD                      call print_hex_word
-  1506                                  
-  1507 000006D8 E8A4FD                      call putc_crlf
+  1464                                      ; 2. セグメントをモニタ用に設定 (表示ルーチンを使うため)
+  1465 000006A3 8CC8                        mov  ax, cs
+  1466 000006A5 8ED8                        mov  ds, ax
+  1467 000006A7 8EC0                        mov  es, ax
+  1468                                  
+  1469                                      ; 3. スタックフレームへのポインタ設定
+  1470 000006A9 89E5                        mov  bp, sp
+  1471                                  
+  1472 000006AB BE[3009]                    mov si, msg_unknown_int
+  1473 000006AE E89EFD                      call puts
+  1474                                  
+  1475                                      ; 3. レジスタ表示 (スタックから読み出して表示)
+  1476                                      ; Stack Layout after pushes:
+  1477                                      ; BP+0: ES
+  1478                                      ; BP+2: DS
+  1479                                      ; BP+4: DI
+  1480                                      ; BP+6: SI
+  1481                                      ; BP+8: BP (Old)
+  1482                                      ; BP+10: SP (Original)
+  1483                                      ; BP+12: BX
+  1484                                      ; BP+14: DX
+  1485                                      ; BP+16: CX
+  1486                                      ; BP+18: AX
+  1487                                      ; BP+20: IP (Return Addr)
+  1488                                      ; BP+22: CS (Return Addr)
+  1489                                      ; BP+24: Flags
+  1490                                      
+  1491                                      ; AX
+  1492 000006B1 BE[4708]                    mov  si, msg_ax
+  1493 000006B4 E898FD                      call puts
+  1494 000006B7 8B4612                      mov  ax, [bp+18]        ; PUSHAで保存されたAX
+  1495 000006BA E8D4FD                      call print_hex_word     ; 4桁HEX表示ルーチン
+  1496                                  
+  1497                                      ; BX
+  1498 000006BD BE[4C08]                    mov  si, msg_bx
+  1499 000006C0 E88CFD                      call puts
+  1500 000006C3 8B460C                      mov  ax, [bp+12]
+  1501 000006C6 E8C8FD                      call print_hex_word
+  1502                                  
+  1503                                      ; CX
+  1504 000006C9 BE[5108]                    mov  si, msg_cx
+  1505 000006CC E880FD                      call puts
+  1506 000006CF 8B4610                      mov  ax, [bp+16]
+  1507 000006D2 E8BCFD                      call print_hex_word
   1508                                  
-  1509                                      ; --- 中断地点 (CS:IP) の表示 ---
-  1510                                      ; PUSHA(16byte) + DS(2) + ES(2) = 20byte
-  1511                                      ; その上が割り込み発生時の IP, CS, Flags です
-  1512                                      
-  1513 000006DB BE[5108]                    mov  si, msg_addr
-  1514 000006DE E865FD                      call puts           ; " Stop at "
-  1515 000006E1 8B4616                      mov  ax, [bp+22]    ; Stack上の CS
-  1516 000006E4 E8A1FD                      call print_hex_word
-  1517 000006E7 B03A                        mov  al, ':'
-  1518 000006E9 E868FD                      call putc
-  1519 000006EC 8B4614                      mov  ax, [bp+20]    ; Stack上の IP
-  1520 000006EF E896FD                      call print_hex_word
-  1521                                  
-  1522 000006F2 E88AFD                      call putc_crlf
-  1523                                  
-  1524                                      ; 4. 復帰処理
-  1525                                      ; ここでモニタのコマンド待ちへ強制ジャンプします
-  1526                                      ; (レジスタはスタックに残ったままになりますが、モニタ再起動でリセットされる前提)
-  1527 000006F5 E908F9                      jmp  start  ; モニタの開始ラベルへ
-  1528                                  
-  1529                                      ; 停止（暴走を防ぐ）
-  1530                                  ;.halt:
-  1531                                  ;    hlt
-  1532                                  ;    jmp .halt
-  1533                                  
-  1534                                  ; =================================================================
-  1535                                  ; Data
-  1536                                  ; =================================================================
-  1537 000006F8 0D0A2A2A2020563533-     msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.9 2026-02-07  **",0x0D,0x0A,0
-  1537 00000701 2052414D204D4F4E49-
-  1537 0000070A 544F522076302E3920-
-  1537 00000713 323032362D30322D30-
-  1537 0000071C 3720202A2A0D0A00   
-  1538 00000724 4C6F6164204845582E-     msg_load: db "Load HEX...",0
-  1538 0000072D 2E2E00             
-  1539 00000730 4F4B00                  msg_ok:   db "OK",0
-  1540 00000733 476F2100                msg_go:   db "Go!",0
+  1509                                      ; DX
+  1510 000006D5 BE[5608]                    mov  si, msg_dx
+  1511 000006D8 E874FD                      call puts
+  1512 000006DB 8B460E                      mov  ax, [bp+14]
+  1513 000006DE E8B0FD                      call print_hex_word
+  1514                                  
+  1515 000006E1 E8A4FD                      call putc_crlf
+  1516                                  
+  1517                                      ; --- 中断地点 (CS:IP) の表示 ---
+  1518                                      ; PUSHA(16byte) + DS(2) + ES(2) = 20byte
+  1519                                      ; その上が割り込み発生時の IP, CS, Flags です
+  1520                                      
+  1521 000006E4 BE[5B08]                    mov  si, msg_addr
+  1522 000006E7 E865FD                      call puts           ; " Stop at "
+  1523 000006EA 8B4616                      mov  ax, [bp+22]    ; Stack上の CS
+  1524 000006ED E8A1FD                      call print_hex_word
+  1525 000006F0 B03A                        mov  al, ':'
+  1526 000006F2 E868FD                      call putc
+  1527 000006F5 8B4614                      mov  ax, [bp+20]    ; Stack上の IP
+  1528 000006F8 E896FD                      call print_hex_word
+  1529                                  
+  1530 000006FB E88AFD                      call putc_crlf
+  1531                                  
+  1532                                      ; 4. 復帰処理
+  1533                                      ; ここでモニタのコマンド待ちへ強制ジャンプします
+  1534                                      ; (レジスタはスタックに残ったままになりますが、モニタ再起動でリセットされる前提)
+  1535 000006FE E9FFF8                      jmp  start  ; モニタの開始ラベルへ
+  1536                                  
+  1537                                      ; 停止（暴走を防ぐ）
+  1538                                  ;.halt:
+  1539                                  ;    hlt
+  1540                                  ;    jmp .halt
   1541                                  
-  1542 00000737 3E2000                  msg_prompt: db "> ", 0
-  1543 0000073A 4572726F720D0A00        msg_error:  db "Error", 0x0D, 0x0A, 0
-  1544 00000742 556E6B6E6F776E2063-     msg_unknown:db "Unknown cmd", 0x0D, 0x0A, 0
-  1544 0000074B 6D640D0A00         
-  1545 00000750 56616C3A2000            msg_in_res: db "Val: ", 0
-  1546 00000756 20446F6E650D0A00        msg_done:   db " Done", 0x0D, 0x0A, 0
-  1547 0000075E 207C2000                msg_bar:    db " | ", 0
-  1548 00000762 436D64733A2044203C-     msg_help:   db "Cmds: D <Seg> <Off>, L <Seg>, G <Seg> <Off>, W <Seg> <Off> <Val>, I <Port>, O <Port> <Val>, S <Start_port> <End_port>, T <Val> ?", 0x0D, 0x0A, 0
-  1548 0000076B 5365673E203C4F6666-
-  1548 00000774 3E2C204C203C536567-
-  1548 0000077D 3E2C2047203C536567-
-  1548 00000786 3E203C4F66663E2C20-
-  1548 0000078F 57203C5365673E203C-
-  1548 00000798 4F66663E203C56616C-
-  1548 000007A1 3E2C2049203C506F72-
-  1548 000007AA 743E2C204F203C506F-
-  1548 000007B3 72743E203C56616C3E-
-  1548 000007BC 2C2053203C53746172-
-  1548 000007C5 745F706F72743E203C-
-  1548 000007CE 456E645F706F72743E-
-  1548 000007D7 2C2054203C56616C3E-
-  1548 000007E0 203F0D0A00         
-  1549 000007E5 5363616E6E696E6720-     msg_scan_start: db "Scanning I/O (Press any key to abort)...", 0x0D, 0x0A, 0
-  1549 000007EE 492F4F202850726573-
-  1549 000007F7 7320616E79206B6579-
-  1549 00000800 20746F2061626F7274-
-  1549 00000809 292E2E2E0D0A00     
-  1550 00000810 202000                  msg_space:      db "  ", 0
-  1551 00000813 41626F727465642E0D-     msg_abort:      db "Aborted.", 0x0D, 0x0A, 0
-  1551 0000081C 0A00               
-  1552 0000081E 5469636B3A2000          msg_tick:   db "Tick: ", 0
-  1553                                  
-  1554                                  ; --- NMIハンドラメッセージ定義 ---
-  1555 00000825 0D0A2A2A2A2041424F-     msg_nmi:  db 0x0D, 0x0A, "*** ABORT (NMI) ***", 0x0D, 0x0A, 0
-  1555 0000082E 525420284E4D492920-
-  1555 00000837 2A2A2A0D0A00       
-  1556 0000083D 2041583D00              msg_ax:   db " AX=", 0
-  1557 00000842 2042583D00              msg_bx:   db " BX=", 0
-  1558 00000847 2043583D00              msg_cx:   db " CX=", 0
-  1559 0000084C 2044583D00              msg_dx:   db " DX=", 0
-  1560 00000851 2053746F7020617420-     msg_addr: db " Stop at CS:IP = ", 0
-  1560 0000085A 43533A4950203D2000 
+  1542                                  ; =================================================================
+  1543                                  ; Data
+  1544                                  ; =================================================================
+  1545 00000701 0D0A2A2A2020563533-     msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.10 2026-02-15  **",0x0D,0x0A,0
+  1545 0000070A 2052414D204D4F4E49-
+  1545 00000713 544F522076302E3130-
+  1545 0000071C 20323032362D30322D-
+  1545 00000725 313520202A2A0D0A00 
+  1546 0000072E 4C6F6164204845582E-     msg_load: db "Load HEX...",0
+  1546 00000737 2E2E00             
+  1547 0000073A 4F4B00                  msg_ok:   db "OK",0
+  1548 0000073D 476F2100                msg_go:   db "Go!",0
+  1549                                  
+  1550 00000741 3E2000                  msg_prompt: db "> ", 0
+  1551 00000744 4572726F720D0A00        msg_error:  db "Error", 0x0D, 0x0A, 0
+  1552 0000074C 556E6B6E6F776E2063-     msg_unknown:db "Unknown cmd", 0x0D, 0x0A, 0
+  1552 00000755 6D640D0A00         
+  1553 0000075A 56616C3A2000            msg_in_res: db "Val: ", 0
+  1554 00000760 20446F6E650D0A00        msg_done:   db " Done", 0x0D, 0x0A, 0
+  1555 00000768 207C2000                msg_bar:    db " | ", 0
+  1556 0000076C 436D64733A2044203C-     msg_help:   db "Cmds: D <Seg> <Off>, L <Seg>, G <Seg> <Off>, W <Seg> <Off> <Val>, I <Port>, O <Port> <Val>, S <Start_port> <End_port>, T <Val> ?", 0x0D, 0x0A, 0
+  1556 00000775 5365673E203C4F6666-
+  1556 0000077E 3E2C204C203C536567-
+  1556 00000787 3E2C2047203C536567-
+  1556 00000790 3E203C4F66663E2C20-
+  1556 00000799 57203C5365673E203C-
+  1556 000007A2 4F66663E203C56616C-
+  1556 000007AB 3E2C2049203C506F72-
+  1556 000007B4 743E2C204F203C506F-
+  1556 000007BD 72743E203C56616C3E-
+  1556 000007C6 2C2053203C53746172-
+  1556 000007CF 745F706F72743E203C-
+  1556 000007D8 456E645F706F72743E-
+  1556 000007E1 2C2054203C56616C3E-
+  1556 000007EA 203F0D0A00         
+  1557 000007EF 5363616E6E696E6720-     msg_scan_start: db "Scanning I/O (Press any key to abort)...", 0x0D, 0x0A, 0
+  1557 000007F8 492F4F202850726573-
+  1557 00000801 7320616E79206B6579-
+  1557 0000080A 20746F2061626F7274-
+  1557 00000813 292E2E2E0D0A00     
+  1558 0000081A 202000                  msg_space:      db "  ", 0
+  1559 0000081D 41626F727465642E0D-     msg_abort:      db "Aborted.", 0x0D, 0x0A, 0
+  1559 00000826 0A00               
+  1560 00000828 5469636B3A2000          msg_tick:   db "Tick: ", 0
   1561                                  
-  1562                                  ; デフォルト割り込みハンドラメッセージ
-  1563 00000863 2A2A20494E542000        msg_int_trap: db "** INT ", 0
-  1564 0000086B 206465746563746564-     msg_detected: db " detected **", 0
-  1564 00000874 202A2A00           
-  1565                                  
-  1566                                  ; PICディスパッチハンドラメッセージ
-  1567 00000878 2A2A2050494320494E-     msg_int_scsi:       db "** PIC INTP1 SCSI **", 0x0D, 0x0A, 0
-  1567 00000881 545031205343534920-
-  1567 0000088A 2A2A0D0A00         
-  1568 0000088F 2A2A2050494320494E-     msg_int_timer1:     db "** PIC INTP2 Timer1 **", 0x0D, 0x0A, 0
-  1568 00000898 5450322054696D6572-
-  1568 000008A1 31202A2A0D0A00     
-  1569 000008A8 2A2A2050494320494E-     msg_int_usart_rx:   db "** PIC INTP3 USART Rx **", 0x0D, 0x0A, 0
-  1569 000008B1 545033205553415254-
-  1569 000008BA 205278202A2A0D0A00 
-  1570 000008C3 2A2A2050494320494E-     msg_int_usart_tx:   db "** PIC INTP4 USART Tx **", 0x0D, 0x0A, 0
-  1570 000008CC 545034205553415254-
-  1570 000008D5 205478202A2A0D0A00 
-  1571 000008DE 2A2A2050494320494E-     msg_int_scu_rx:     db "** PIC INTP5 SCU Rx **", 0x0D, 0x0A, 0
-  1571 000008E7 545035205343552052-
-  1571 000008F0 78202A2A0D0A00     
-  1572 000008F7 2A2A2050494320494E-     msg_int_scu_tx:     db "** PIC INTP6 SCU Tx **", 0x0D, 0x0A, 0
-  1572 00000900 545036205343552054-
-  1572 00000909 78202A2A0D0A00     
-  1573 00000910 2A2A2050494320494E-     msg_int_ppi:        db "** PIC INTP7 PPI **", 0x0D, 0x0A, 0
-  1573 00000919 54503720505049202A-
-  1573 00000922 2A0D0A00           
-  1574                                  
-  1575                                  ; 未定義割り込みハンドラのメッセージ
-  1576 00000926 0D0A21212120554E4B-     msg_unknown_int: db 0x0D, 0x0A, "!!! UNKNOWN INTERRUPT !!!", 0x0D, 0x0A, 0
-  1576 0000092F 4E4F574E20494E5445-
-  1576 00000938 525255505420212121-
-  1576 00000941 0D0A00             
-  1577                                  
-  1578                                  ; 変数
-  1579 00000944 0000                    dump_seg:   dw  0x0000  ; Dump: セグメント保存用
-  1580 00000946 0000                    dump_off:   dw  0x0000  ; Dump: オフセット保存用
-  1581 00000948 0000                    load_seg:   dw  0x0000  ; Load: ターゲットセグメント
-  1582 0000094A 0000                    tick_counter_lo: dw 0x0000  ; Tick: 下位16bit
-  1583 0000094C 0000                    tick_counter_hi: dw 0x0000  ; Tick: 上位16bit
+  1562                                  ; --- NMIハンドラメッセージ定義 ---
+  1563 0000082F 0D0A2A2A2A2041424F-     msg_nmi:  db 0x0D, 0x0A, "*** ABORT (NMI) ***", 0x0D, 0x0A, 0
+  1563 00000838 525420284E4D492920-
+  1563 00000841 2A2A2A0D0A00       
+  1564 00000847 2041583D00              msg_ax:   db " AX=", 0
+  1565 0000084C 2042583D00              msg_bx:   db " BX=", 0
+  1566 00000851 2043583D00              msg_cx:   db " CX=", 0
+  1567 00000856 2044583D00              msg_dx:   db " DX=", 0
+  1568 0000085B 2053746F7020617420-     msg_addr: db " Stop at CS:IP = ", 0
+  1568 00000864 43533A4950203D2000 
+  1569                                  
+  1570                                  ; デフォルト割り込みハンドラメッセージ
+  1571 0000086D 2A2A20494E542000        msg_int_trap: db "** INT ", 0
+  1572 00000875 206465746563746564-     msg_detected: db " detected **", 0
+  1572 0000087E 202A2A00           
+  1573                                  
+  1574                                  ; PICディスパッチハンドラメッセージ
+  1575 00000882 2A2A2050494320494E-     msg_int_scsi:       db "** PIC INTP1 SCSI **", 0x0D, 0x0A, 0
+  1575 0000088B 545031205343534920-
+  1575 00000894 2A2A0D0A00         
+  1576 00000899 2A2A2050494320494E-     msg_int_timer1:     db "** PIC INTP2 Timer1 **", 0x0D, 0x0A, 0
+  1576 000008A2 5450322054696D6572-
+  1576 000008AB 31202A2A0D0A00     
+  1577 000008B2 2A2A2050494320494E-     msg_int_usart_rx:   db "** PIC INTP3 USART Rx **", 0x0D, 0x0A, 0
+  1577 000008BB 545033205553415254-
+  1577 000008C4 205278202A2A0D0A00 
+  1578 000008CD 2A2A2050494320494E-     msg_int_usart_tx:   db "** PIC INTP4 USART Tx **", 0x0D, 0x0A, 0
+  1578 000008D6 545034205553415254-
+  1578 000008DF 205478202A2A0D0A00 
+  1579 000008E8 2A2A2050494320494E-     msg_int_scu_rx:     db "** PIC INTP5 SCU Rx **", 0x0D, 0x0A, 0
+  1579 000008F1 545035205343552052-
+  1579 000008FA 78202A2A0D0A00     
+  1580 00000901 2A2A2050494320494E-     msg_int_scu_tx:     db "** PIC INTP6 SCU Tx **", 0x0D, 0x0A, 0
+  1580 0000090A 545036205343552054-
+  1580 00000913 78202A2A0D0A00     
+  1581 0000091A 2A2A2050494320494E-     msg_int_ppi:        db "** PIC INTP7 PPI **", 0x0D, 0x0A, 0
+  1581 00000923 54503720505049202A-
+  1581 0000092C 2A0D0A00           
+  1582                                  
+  1583                                  ; 未定義割り込みハンドラのメッセージ
+  1584 00000930 0D0A21212120554E4B-     msg_unknown_int: db 0x0D, 0x0A, "!!! UNKNOWN INTERRUPT !!!", 0x0D, 0x0A, 0
+  1584 00000939 4E4F574E20494E5445-
+  1584 00000942 525255505420212121-
+  1584 0000094B 0D0A00             
+  1585                                  
+  1586                                  ; 変数
+  1587 0000094E 0000                    dump_seg:   dw  0x0000  ; Dump: セグメント保存用
+  1588 00000950 0000                    dump_off:   dw  0x0000  ; Dump: オフセット保存用
+  1589 00000952 0000                    load_seg:   dw  0x0000  ; Load: ターゲットセグメント
+  1590 00000954 0000                    tick_counter_lo: dw 0x0000  ; Tick: 下位16bit
+  1591 00000956 0000                    tick_counter_hi: dw 0x0000  ; Tick: 上位16bit
