@@ -1,5 +1,5 @@
 ; =================================================================
-; V53 Monitor System v0.1  2026-01-12
+; V53 ROM Monitor System v0.2  2026-03-01
 ; Target: V53 VME Board & DOSBox-X Simulation
 ; =================================================================
 
@@ -61,12 +61,12 @@
     org 0
     cpu 186
 
-    ; SCUレジスタ (SCUは1260Hに仮配置）
-    %define SCU_DATA    0x01260 ; 送受データ・レジスタ(R:SRB/W:STB)
-    %define SCU_SST     0x01261 ; ステータス・レジスタ(R:SST)
-    %define SCU_SCM     0x01261 ; コマンドレジスタ(W:SCM)
-    %define SCU_SMD     0x01262 ; シリアルモード設定(W:SMD)
-    %define SCU_SIMK    0x01263 ; シリアル割り込みマスクレジスタ(R/W:SIMK)
+    ; SCUレジスタ (SCUはF060Hに配置）
+    %define SCU_DATA    0x0F060 ; 送受データ・レジスタ(R:SRB/W:STB)
+    %define SCU_SST     0x0F061 ; ステータス・レジスタ(R:SST)
+    %define SCU_SCM     0x0F061 ; コマンドレジスタ(W:SCM)
+    %define SCU_SMD     0x0F062 ; シリアルモード設定(W:SMD)
+    %define SCU_SIMK    0x0F063 ; シリアル割り込みマスクレジスタ(R/W:SIMK)
     %define TX_READY    00000001b   ; TBRDY                                 
     %define RX_READY    00000010b   ; RBRDY
 %endif
@@ -112,11 +112,11 @@ start:
     ; WCY0-WCY3 すべて7wait
     ;
     mov dx, WMB1
-    mov al, 01110001b	; L=512KB(Onboard RAM) M=256KB(VME RAM?) H=256KB(Onboard ROM)
+    mov al, 01110011b	; L=512KB(Onboard RAM) M=384KB(VME RAM) H=128KB(Onboard ROM)
     out dx, al
 
     mov dx, WCY2
-    mov al, 00010000b	; M=1wait L=0wait
+    mov al, 00000000b	; M=0wait L=0wait
     out dx, al
 
     mov dx, WCY3
@@ -142,12 +142,12 @@ start:
     out dx, al
 
     ; ---------------------------------------------
-    ; 4. IOアドレスの設定 (0x1260にSCUを仮配置)
-    ; OPHA (FFFCH) に 12H を設定 (ベースアドレス上位8ビット)
+    ; 4. IOアドレスの設定 (0xF060にSCUを仮配置)
+    ; OPHA (FFFCH) に F0H を設定 (ベースアドレス上位8ビット)
     ; SULA (FFF8H) に 60H を設定 (SCUのオフセット)
     ; ---------------------------------------------
     mov dx, OPHA
-    mov al, 0x12    ; 上位アドレス
+    mov al, 0xF0    ; 上位アドレス
     out dx, al
 
     mov dx, SULA
@@ -163,7 +163,7 @@ start:
     out dx, al
 
     ; ---------------------------------------------
-    ; 6. SCU内部レジスタの初期化 (配置した1260Hを使用)
+    ; 6. SCU内部レジスタの初期化
     ; ---------------------------------------------
     ; 動作モード設定 SMDレジスタ
     ; Mode: 非同期, 8bit, パリティなし, 1ストップビット, x16クロック
@@ -355,6 +355,14 @@ do_load:
     call get_hex_byte   ; 1バイト読み取り
     mov [es:bx], al     ; ターゲット(ES)へ書き込み
     inc bx              ; 次のアドレスにする
+    ; --- 追加: 64KBの境界チェック ---
+    jnz .loop_next      ; bxが0にならなければそのまま
+    mov ax, es          ; bxが0(一周)したら
+    add ax, 0x1000      ; セグメントを64KB分(0x1000)進める
+    mov es, ax
+    ; -----------------------------
+
+.loop_next:
     loop .data_loop     ; データ長分繰り返す
     
 .read_chk:
@@ -593,7 +601,7 @@ skip_space:
 ; =================================================================
 ; Data
 ; =================================================================
-msg_boot: db 0x0D,0x0A,"**  V53 MONITOR v0.1 2026-01-12  **",0x0D,0x0A,0
+msg_boot: db 0x0D,0x0A,"**  V53 ROM MONITOR v0.2 2026-03-01  **",0x0D,0x0A,0
 msg_load: db "Load HEX...",0
 msg_ok:   db "OK",0
 msg_go:   db "Go!",0
