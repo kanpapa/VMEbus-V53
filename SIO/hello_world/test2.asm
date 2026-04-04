@@ -5,6 +5,9 @@
 [BITS 16]
 [ORG 0x8100]
 
+%define MPSC1_CTRL 0x00A2
+%define MPSC2_CTRL 0x00AA
+
 START:
     cli                     ; 割り込み禁止
     cld                     ; 文字列処理を前方へ
@@ -89,17 +92,25 @@ L0183FD:
     ret
 
 ; ---------------------------------------------------
-; MPSC1 初期化シーケンス (ROM 01:823B～の内容を網羅) 
+; MPSC1 初期化シーケンス (ROM 01:8238～の内容を網羅) 
 ; ---------------------------------------------------
 L018238:
-    mov dx, 0x00A2  ; MPSC1 Ch-A Control
+; --- [Phase 1: Hardware Reset] ---
+    mov dx, MPSC1_CTRL
+    xor al, al          ; AL = 0
+    out dx, al          ; Pointer Reset 1 
+    out dx, al          ; Pointer Reset 2 
 
-    ; ポインタの強制リセット
-    mov al, 0x00
-    out dx, al
-    out dx, al
+    mov dx, MPSC2_CTRL
+    out dx, al          ; Pointer Reset 1 
+    out dx, al          ; Pointer Reset 2 
 
-    ; Channel Reset
+    ; Channel Reset (WR0: 0x18)
+    mov dx, MPSC1_CTRL
+    mov al, 0x18        ; Channel Reset command 
+    out dx, al          ; Direct Write to WR0
+
+    mov dx, MPSC2_CTRL
     mov al, 0x18
     out dx, al
     
@@ -111,65 +122,91 @@ L018238:
     nop
     loop .wait_res
 
-    ; WR4: 64x Clock, 2 Stop, No Parity (ROM値: E0h)
-    mov al, 0x04
-    out dx, al
-    mov al, 0xE0
-    out dx, al
+    ; WR1: Reset Ext/Status
+    mov al, 0x01        ; Select WR1
+    mov bl, 0x10        ; Value 
+    call mpsc_write_both
 
-    ; WR10: NRZ Encoding (ROM値: 00h)
-    mov al, 0x0A
-    out dx, al
-    mov al, 0x00
-    out dx, al
+    ; WR2: 
+    mov al, 0x02        ; Select WR2
+    mov bl, 0xE0        ; Value 
+    call mpsc_write_both
 
-    ; WR3: 8bit Rx, Rx Enable (ROM値: 32h)
-    mov al, 0x03
-    out dx, al
-    mov al, 0x32
-    out dx, al
+    ; WR4:
+    mov al, 0x04        ; Select WR4
+    mov bl, 0x10        ; Value 
+    call mpsc_write_both
 
-    ; WR5: 8bit Tx, Tx Enable, DTR/RTS ON (ROM値: 68h相当)
-    mov al, 0x05
-    out dx, al
-    mov al, 0x68
-    out dx, al
+    ; WR4: 2回目
+    mov al, 0x04        ; Select WR4
+    mov bl, 0x10        ; Value 
+    call mpsc_write_both
 
-    ; --- ボーレートジェネレータ設定 (ROM 01:82D0～付近) ---
+    ; WR6:
+    mov al, 0x06        ; Select WR6
+    mov bl, 0x32        ; Value 
+    call mpsc_write_both
 
-    ; WR11: Clock Source Selection (ROM値: F3h)
-    ; 受信・送信クロック共にBRG出力を選択
-    mov al, 0x0B
-    out dx, al
-    mov al, 0xF3
-    out dx, al
+    ; WR7:
+    mov al, 0x07        ; Select WR7
+    mov bl, 0x32        ; Value 
+    call mpsc_write_both
 
-    ; WR12: Baud Rate Generator Time Constant Lower (ROM推測値)
-    ; ダンプの 01:82A0 付近の設定に基づく
+    ; WR12:
     mov al, 0x0C
+    mov bl, 0x00
+    call mpsc_write_both
+    
+    ; WR14:
+    mov al, 0x0E        ; Select WR14
+    mov bl, 0x00        ; Value 
+    call mpsc_write_both
+
+    ; WR15:
+    mov al, 0x0F        ; Select WR15
+    mov bl, 0x05        ; Value 
+    call mpsc_write_both
+
+    ; WR11:
+    mov al, 0x0B        ; Select WR11
+    mov bl, 0x00        ; Value 
+    call mpsc_write_both
+
+    ; WR3:
+    mov al, 0x03        ; Select WR3
+    mov bl, 0xF3        ; Value 
+    call mpsc_write_both
+
+    ; WR5:
+    mov al, 0x05        ; Select WR5
+    mov bl, 0xE6        ; Value
+    call mpsc_write_both
+    
+    ; Reset Tx/Rx Interrupt (WR0)
+    mov dx, MPSC1_CTRL
+    mov al, 0x80        ; Reset Tx Int 
     out dx, al
-    mov al, 0x32    ; ROM内の設定値 32h
+    mov al, 0x40        ; Reset Rx Int 
     out dx, al
 
-    ; WR13: Baud Rate Generator Time Constant Upper
-    mov al, 0x0D
-    out dx, al
-    mov al, 0x00
-    out dx, al
+    ret
 
-    ; WR14: BRG Control - BRG Enable (ROM値: E6h)
-    ; ここで物理的にカウントが開始されます
-    mov al, 0x0E
-    out dx, al
-    mov al, 0xE6
-    out dx, al
-
-    ; --- 割り込みリセット (ROM 01:8321～) ---
-    mov al, 0x80    ; Reset Tx Int
-    out dx, al
-    mov al, 0x40    ; Reset Rx Int
-    out dx, al
-
+; --- Helper: Write to both MPSC1 and MPSC2 ---
+; Input: AL = Register Index, BL = Value
+mpsc_write_both:
+    ; MPSC1
+    mov dx, MPSC1_CTRL
+    out dx, al          ; Write Index
+    xchg al, bl
+    out dx, al          ; Write Data
+    xchg al, bl
+    
+    ; MPSC2
+    mov dx, MPSC2_CTRL
+    out dx, al          ; Write Index
+    xchg al, bl
+    out dx, al          ; Write Data
+    xchg al, bl
     ret
 
 ; --------------------------------------------------
