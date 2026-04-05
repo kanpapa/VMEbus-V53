@@ -1,0 +1,262 @@
+     1                                  ; ==========================================
+     2                                  ; DVE-554 Analysis Test Code (NASM)
+     3                                  ; ==========================================
+     4                                  
+     5                                  [BITS 16]
+     6                                  [ORG 0x8100]
+     7                                  
+     8                                  %define MPSC1_CTRL 0x00A2
+     9                                  %define MPSC2_CTRL 0x00AA
+    10                                  
+    11                                  START:
+    12 00000000 FA                          cli                     ; 割り込み禁止
+    13 00000001 FC                          cld                     ; 文字列処理を前方へ
+    14 00000002 BCFF7F                      mov     sp, 0x7FFF      ; SP = 0x7FFF 初期化
+    15 00000005 B80000                      mov     ax, 0x0000
+    16 00000008 8ED8                        mov     ds, ax          ; DS = 0000h
+    17 0000000A B800C0                      mov     ax, 0xC000
+    18 0000000D 8EC0                        mov     es, ax          ; ES = C000h
+    19                                  
+    20                                      ; --- 2. V53 システムレジスタ初期化 (ROM 01:81E6ルーチンの再現) ---
+    21 0000000F E81900                      call L0181E6
+    22                                  
+    23                                      ; --- 3. TCU (タイマーユニット) 初期化 (ROM 01:839Dルーチンの再現) ---
+    24 00000012 E82C00                      call L01839D
+    25                                  
+    26                                      ; --- 4. 物理IOの初期化 (ROM 01:83FDルーチンの内容) ---
+    27 00000015 E84B00                      call L0183FD
+    28                                  
+    29                                      ; --- 5. MPSC の初期化 ---
+    30 00000018 E85700                      call L018238            ; 外部MPSC uPD72001のセットアップ
+    31                                  
+    32                                      ; --- 6. 文字 'A' の連続送信 ---
+    33                                  .loop_send:
+    34 0000001B BAA200                      mov dx, 0x00A2
+    35                                  .wait_tx:
+    36 0000001E EC                          in al, dx
+    37 0000001F A804                        test al, 0x04   ; Tx Buffer Empty?
+    38 00000021 74FB                        jz .wait_tx
+    39 00000023 BAA000                      mov dx, 0x00A0
+    40 00000026 B041                        mov al, 'A'
+    41 00000028 EE                          out dx, al
+    42 00000029 EBF0                        jmp .loop_send
+    43                                  
+    44                                  ; --------------------------------------------------
+    45                                  ;  V53 システムレジスタ初期化 (ROM 01:81E6相当)
+    46                                  ; --------------------------------------------------
+    47                                  L0181E6:
+    48 0000002B BE[1C01]                    mov si, TABLE_V53_REG
+    49                                  .next:
+    50 0000002E 2E8B14                      mov dx, [cs:si]      ; Port Number (16bit)
+    51 00000031 83FAFF                      cmp dx, 0xFFFF       ; Terminator
+    52 00000034 740A                        je .done
+    53 00000036 2E8A4402                    mov al, [cs:si+2]    ; Value (8bit)
+    54 0000003A EE                          out dx, al
+    55 0000003B 83C603                      add si, 3
+    56 0000003E EBEE                        jmp .next
+    57                                  .done:
+    58 00000040 C3                          ret
+    59                                  
+    60                                  ; --------------------------------------------------
+    61                                  ; TCU (タイマーユニット) 初期化 (ROM 01:839D相当)
+    62                                  ; --------------------------------------------------
+    63                                  L01839D:
+    64 00000041 BE[5801]                    mov si, TABLE_TCU_REG
+    65                                  .next:
+    66 00000044 2E8B14                      mov dx, [cs:si]      ; Port1 (16bit)
+    67 00000047 83FAFF                      cmp dx, 0xFFFF       ; Terminator
+    68 0000004A 7416                        je .done
+    69 0000004C 2E8A4402                    mov al, [cs:si+2]    ; Val1 (8bit)
+    70 00000050 EE                          out dx, al
+    71 00000051 2E8B5403                    mov dx, [cs:si+3]    ; Port2 (16bit)
+    72 00000055 2E8B4405                    mov ax, [cs:si+5]    ; Val2 (16bit)
+    73 00000059 EE                          out dx, al           ; Port2 Low
+    74 0000005A 88E0                        mov al, ah
+    75 0000005C EE                          out dx, al           ; Port2 High
+    76 0000005D 83C607                      add si, 7
+    77 00000060 EBE2                        jmp .next
+    78                                  .done:
+    79 00000062 C3                          ret
+    80                                  
+    81                                  ; ---------------------------------------------------
+    82                                  ; 物理IOの初期化 (ROM 01:83FDルーチンの内容) 
+    83                                  ; ---------------------------------------------------
+    84                                  L0183FD:
+    85 00000063 B000                        mov al, 0x00
+    86 00000065 BA8600                      mov dx, 0x0086
+    87 00000068 EE                          out dx, al
+    88 00000069 BA8200                      mov dx, 0x0082
+    89 0000006C EE                          out dx, al
+    90 0000006D BA8000                      mov dx, 0x0080
+    91 00000070 EE                          out dx, al
+    92 00000071 C3                          ret
+    93                                  
+    94                                  ; ---------------------------------------------------
+    95                                  ; MPSC1/2 初期化シーケンス (ROMはBisyncだったのでAsyncに変更）
+    96                                  ; ---------------------------------------------------
+    97                                  L018238:
+    98                                  ; --- [Phase 1: Hardware Reset] ---
+    99 00000072 BAA200                      mov dx, MPSC1_CTRL
+   100 00000075 B000                        mov al, 0
+   101 00000077 EE                          out dx, al          ; Pointer Reset 1
+   102 00000078 EE                          out dx, al          ; Pointer Reset 2 
+   103                                  
+   104 00000079 BAAA00                      mov dx, MPSC2_CTRL
+   105 0000007C B000                        mov al, 0
+   106 0000007E EE                          out dx, al          ; Pointer Reset 1 
+   107 0000007F EE                          out dx, al          ; Pointer Reset 2 
+   108                                  
+   109                                      ; Channel Reset (WR0: 0x18)
+   110 00000080 BAA200                      mov dx, MPSC1_CTRL
+   111 00000083 B018                        mov al, 0x18        ; Channel Reset command 
+   112 00000085 EE                          out dx, al          ; Direct Write to WR0
+   113                                  
+   114 00000086 BAAA00                      mov dx, MPSC2_CTRL
+   115 00000089 B018                        mov al, 0x18
+   116 0000008B EE                          out dx, al
+   117                                      
+   118                                      ; リセット後の安定待ち
+   119 0000008C B96400                      mov cx, 100
+   120                                  .wait_res:
+   121 0000008F 90                          nop
+   122 00000090 90                          nop
+   123 00000091 90                          nop
+   124 00000092 E2FB                        loop .wait_res
+   125                                  
+   126                                      ; CR2: 割り込み動作の基本設定
+   127 00000094 B002                        mov al, 2
+   128 00000096 B300                        mov bl, 0x00        ; 割り込みは使用しない。ポーリングモード。
+   129 00000098 E86E00                      call mpsc_write_both
+   130                                  
+   131                                      ; CR4: 通信プロトコルとデータフォーマットの設定
+   132 0000009B B004                        mov al, 4
+   133 0000009D B344                        mov bl, 0x44        ; x16, Async, ストップビット 1bit，パリティなし
+   134 0000009F E86700                      call mpsc_write_both
+   135                                  
+   136                                      ; CR1: 送受信割り込みおよびDMAの無効化
+   137 000000A2 B001                        mov al, 1
+   138 000000A4 B300                        mov bl, 0x00
+   139 000000A6 E86000                      call mpsc_write_both
+   140                                      
+   141                                      ; CR12: ボーレートジェネレータ（BRG）の割り込みとレジスタ書き込み設定 
+   142 000000A9 BAA200                      mov dx, MPSC1_CTRL
+   143 000000AC B00C                        mov al, 12          ; Select CR12
+   144 000000AE EE                          out dx, al
+   145 000000AF B001                        mov al, 1           ; 受信BRGレジスタセットモード有効 (D0=1)
+   146 000000B1 EE                          out dx, al
+   147 000000B2 B01E                        mov al, 0x1e        ; 下位バイトの値
+   148 000000B4 EE                          out dx, al
+   149 000000B5 B000                        mov al, 0x00        ; 上位バイトの値
+   150 000000B7 EE                          out dx, al
+   151                                      
+   152 000000B8 BAA200                      mov dx, MPSC1_CTRL
+   153 000000BB B00C                        mov al, 12          ; Select CR12
+   154 000000BD EE                          out dx, al
+   155 000000BE B002                        mov al, 2           ; 送信BRGレジスタセットモード有効
+   156 000000C0 EE                          out dx, al
+   157 000000C1 B01E                        mov al, 0x1e        ; 下位バイトの値
+   158 000000C3 EE                          out dx, al
+   159 000000C4 B000                        mov al, 0x00        ; 上位バイトの値
+   160 000000C6 EE                          out dx, al
+   161                                      
+   162 000000C7 BAAA00                      mov dx, MPSC2_CTRL
+   163 000000CA B00C                        mov al, 12          ; Select CR12
+   164 000000CC EE                          out dx, al
+   165 000000CD B001                        mov al, 1           ; 受信BRGレジスタセットモード有効 (D0=1)
+   166 000000CF EE                          out dx, al
+   167 000000D0 B01E                        mov al, 0x1e        ; 下位バイトの値
+   168 000000D2 EE                          out dx, al
+   169 000000D3 B000                        mov al, 0x00        ; 上位バイトの値
+   170 000000D5 EE                          out dx, al
+   171                                      
+   172 000000D6 BAAA00                      mov dx, MPSC2_CTRL
+   173 000000D9 B00C                        mov al, 12          ; Select CR12
+   174 000000DB EE                          out dx, al
+   175 000000DC B002                        mov al, 2           ; 送信BRGレジスタセットモード有効
+   176 000000DE EE                          out dx, al
+   177 000000DF B01E                        mov al, 0x1e        ; 下位バイトの値
+   178 000000E1 EE                          out dx, al
+   179 000000E2 B000                        mov al, 0x00        ; 上位バイトの値
+   180 000000E4 EE                          out dx, al
+   181                                  
+   182                                      ; CR15: クロックソースとピン機能の選択
+   183 000000E5 B00F                        mov al, 15
+   184 000000E7 B356                        mov bl, 0x56        ; ボーレートジェネレータ使用
+   185 000000E9 E81D00                      call mpsc_write_both
+   186                                  
+   187                                      ; CR14: BRGの動作許可とソース設定
+   188 000000EC B00E                        mov al, 14
+   189 000000EE B307                        mov bl, 0x07        ; BRGを動作させるソースクロックとして、システムクロック（CLK）を選択,送受信BRGカウント有効
+   190 000000F0 E81600                      call mpsc_write_both
+   191                                  
+   192                                      ; CR10: データエンコーディングなどの設定
+   193 000000F3 B00A                        mov al, 10
+   194 000000F5 B300                        mov bl, 0x00        ; データフォーマットとしてNRZ方式を選択
+   195 000000F7 E80F00                      call mpsc_write_both
+   196                                  
+   197                                      ; CR3: 受信動作の有効化
+   198 000000FA B003                        mov al, 3
+   199 000000FC B3C1                        mov bl, 0xC1        ; データ 8bit，受信イネーブル
+   200 000000FE E80800                      call mpsc_write_both
+   201                                      
+   202                                      ; CR5: 送信動作の有効化とモデム制御ピンのアサート
+   203 00000101 B005                        mov al, 5
+   204 00000103 B3EA                        mov bl, 0xEA        ; データ 8bit，送信イネーブル
+   205 00000105 E80100                      call mpsc_write_both
+   206                                      
+   207 00000108 C3                          ret
+   208                                  
+   209                                  ; --- Helper: Write to both MPSC1 and MPSC2 ---
+   210                                  ; Input: AL = Register Index, BL = Value
+   211                                  mpsc_write_both:
+   212                                      ; MPSC1
+   213 00000109 BAA200                      mov dx, MPSC1_CTRL
+   214 0000010C EE                          out dx, al          ; Write Index
+   215 0000010D 86C3                        xchg al, bl
+   216 0000010F EE                          out dx, al          ; Write Data
+   217 00000110 86C3                        xchg al, bl
+   218                                      
+   219                                      ; MPSC2
+   220 00000112 BAAA00                      mov dx, MPSC2_CTRL
+   221 00000115 EE                          out dx, al          ; Write Index
+   222 00000116 86C3                        xchg al, bl
+   223 00000118 EE                          out dx, al          ; Write Data
+   224 00000119 86C3                        xchg al, bl
+   225 0000011B C3                          ret
+   226                                  
+   227                                  ; --------------------------------------------------
+   228                                  ; V53システムレジスタ設定テーブル (ROM 01:81FCから完全抽出)
+   229                                  ; --------------------------------------------------
+   230                                  ALIGN 2
+   231                                  TABLE_V53_REG:
+   232 0000011C FEFF00                      db 0xFE, 0xFF, 0x00     ; FFFE (SCTL) = 00h
+   233 0000011F FDFF06                      db 0xFD, 0xFF, 0x06     ; FFFD (OPSEL)= 06h
+   234 00000122 FCFF00                      db 0xFC, 0xFF, 0x00     ; FFFC (OPHA) = 00h
+   235 00000125 FBFFE0                      db 0xFB, 0xFF, 0xE0     ; FFFB (DULA) = E0h
+   236 00000128 FAFFC0                      db 0xFA, 0xFF, 0xC0     ; FFFA (IULA) = C0h
+   237 0000012B F9FFD0                      db 0xF9, 0xFF, 0xD0     ; FFF9 (TULA) = D0h
+   238 0000012E F8FFF0                      db 0xF8, 0xFF, 0xF0     ; FFF8 (SULA) = F0h
+   239 00000131 EAFF00                      db 0xEA, 0xFF, 0x00     ; FFEA (WMB0) = 00h
+   240 00000134 EBFF00                      db 0xEB, 0xFF, 0x00     ; FFEB (WCY1) = 00h
+   241 00000137 ECFF00                      db 0xEC, 0xFF, 0x00     ; FFEC (WCY0) = 00h
+   242 0000013A F3FF73                      db 0xF3, 0xFF, 0x73     ; FFF3 (WMB1) = 73h
+   243 0000013D EDFF00                      db 0xED, 0xFF, 0x00     ; FFED (WAC)  = 00h
+   244 00000140 F4FF10                      db 0xF4, 0xFF, 0x10     ; FFF4 (WCY2) = 10h
+   245 00000143 F5FF22                      db 0xF5, 0xFF, 0x22     ; FFF5 (WCY3) = 22h
+   246 00000146 F6FF10                      db 0xF6, 0xFF, 0x10     ; FFF6 (WCY4) = 10h
+   247 00000149 F2FF00                      db 0xF2, 0xFF, 0x00     ; FFF2 (RFC)  = 00h
+   248 0000014C E9FF00                      db 0xE9, 0xFF, 0x00     ; FFE9 (BRC)  = 00h
+   249 0000014F F0FF02                      db 0xF0, 0xFF, 0x02     ; FFF0 (TCKS) = 02h
+   250 00000152 F1FF00                      db 0xF1, 0xFF, 0x00     ; FFF1 (SBCR) = 00h
+   251 00000155 FFFFFF                      db 0xFF, 0xFF, 0xFF     ; 終端マーカー
+   252                                  
+   253                                  ; --------------------------------------------------
+   254                                  ; TCU タイマー設定テーブル (ROM 01:83BFから完全抽出)
+   255                                  ; --------------------------------------------------
+   256                                  ALIGN 2
+   257                                  TABLE_TCU_REG:
+   258                                      ; Port1, Val1, Port2, Val2(16)
+   259 00000158 D60036D000204E              db 0xD6, 0x00, 0x36, 0xD0, 0x00, 0x20, 0x4E ; T0設定
+   260 0000015F D60070D200050D              db 0xD6, 0x00, 0x70, 0xD2, 0x00, 0x05, 0x0D ; T0最大値A
+   261 00000166 D600B0D400050D              db 0xD6, 0x00, 0xB0, 0xD4, 0x00, 0x05, 0x0D ; T0最大値B
+   262 0000016D FFFF                        db 0xFF, 0xFF           ; 終端マーカー
