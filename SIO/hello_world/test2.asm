@@ -92,16 +92,17 @@ L0183FD:
     ret
 
 ; ---------------------------------------------------
-; MPSC1 初期化シーケンス (ROM 01:8238～の内容を網羅) 
+; MPSC1/2 初期化シーケンス (ROMはBisyncだったのでAsyncに変更）
 ; ---------------------------------------------------
 L018238:
 ; --- [Phase 1: Hardware Reset] ---
     mov dx, MPSC1_CTRL
-    xor al, al          ; AL = 0
-    out dx, al          ; Pointer Reset 1 
+    mov al, 0
+    out dx, al          ; Pointer Reset 1
     out dx, al          ; Pointer Reset 2 
 
     mov dx, MPSC2_CTRL
+    mov al, 0
     out dx, al          ; Pointer Reset 1 
     out dx, al          ; Pointer Reset 2 
 
@@ -122,73 +123,87 @@ L018238:
     nop
     loop .wait_res
 
-    ; WR1: Reset Ext/Status
-    mov al, 0x01        ; Select WR1
-    mov bl, 0x10        ; Value 
+    ; CR2: 割り込み動作の基本設定
+    mov al, 2
+    mov bl, 0x00        ; 割り込みは使用しない。ポーリングモード。
     call mpsc_write_both
 
-    ; WR2: 
-    mov al, 0x02        ; Select WR2
-    mov bl, 0xE0        ; Value 
+    ; CR4: 通信プロトコルとデータフォーマットの設定
+    mov al, 4
+    mov bl, 0x44        ; x16, Async, ストップビット 1bit，パリティなし
     call mpsc_write_both
 
-    ; WR4:
-    mov al, 0x04        ; Select WR4
-    mov bl, 0x10        ; Value 
-    call mpsc_write_both
-
-    ; WR4: 2回目
-    mov al, 0x04        ; Select WR4
-    mov bl, 0x10        ; Value 
-    call mpsc_write_both
-
-    ; WR6:
-    mov al, 0x06        ; Select WR6
-    mov bl, 0x32        ; Value 
-    call mpsc_write_both
-
-    ; WR7:
-    mov al, 0x07        ; Select WR7
-    mov bl, 0x32        ; Value 
-    call mpsc_write_both
-
-    ; WR12:
-    mov al, 0x0C
+    ; CR1: 送受信割り込みおよびDMAの無効化
+    mov al, 1
     mov bl, 0x00
     call mpsc_write_both
     
-    ; WR14:
-    mov al, 0x0E        ; Select WR14
-    mov bl, 0x00        ; Value 
+    ; CR12: ボーレートジェネレータ（BRG）の割り込みとレジスタ書き込み設定 
+    mov dx, MPSC1_CTRL
+    mov al, 12          ; Select CR12
+    out dx, al
+    mov al, 1           ; 受信BRGレジスタセットモード有効 (D0=1)
+    out dx, al
+    mov al, 0x1e        ; 下位バイトの値
+    out dx, al
+    mov al, 0x00        ; 上位バイトの値
+    out dx, al
+    
+    mov dx, MPSC1_CTRL
+    mov al, 12          ; Select CR12
+    out dx, al
+    mov al, 2           ; 送信BRGレジスタセットモード有効
+    out dx, al
+    mov al, 0x1e        ; 下位バイトの値
+    out dx, al
+    mov al, 0x00        ; 上位バイトの値
+    out dx, al
+    
+    mov dx, MPSC2_CTRL
+    mov al, 12          ; Select CR12
+    out dx, al
+    mov al, 1           ; 受信BRGレジスタセットモード有効 (D0=1)
+    out dx, al
+    mov al, 0x1e        ; 下位バイトの値
+    out dx, al
+    mov al, 0x00        ; 上位バイトの値
+    out dx, al
+    
+    mov dx, MPSC2_CTRL
+    mov al, 12          ; Select CR12
+    out dx, al
+    mov al, 2           ; 送信BRGレジスタセットモード有効
+    out dx, al
+    mov al, 0x1e        ; 下位バイトの値
+    out dx, al
+    mov al, 0x00        ; 上位バイトの値
+    out dx, al
+
+    ; CR15: クロックソースとピン機能の選択
+    mov al, 15
+    mov bl, 0x56        ; ボーレートジェネレータ使用
     call mpsc_write_both
 
-    ; WR15:
-    mov al, 0x0F        ; Select WR15
-    mov bl, 0x05        ; Value 
+    ; CR14: BRGの動作許可とソース設定
+    mov al, 14
+    mov bl, 0x07        ; BRGを動作させるソースクロックとして、システムクロック（CLK）を選択,送受信BRGカウント有効
     call mpsc_write_both
 
-    ; WR11:
-    mov al, 0x0B        ; Select WR11
-    mov bl, 0x00        ; Value 
+    ; CR10: データエンコーディングなどの設定
+    mov al, 10
+    mov bl, 0x00        ; データフォーマットとしてNRZ方式を選択
     call mpsc_write_both
 
-    ; WR3:
-    mov al, 0x03        ; Select WR3
-    mov bl, 0xF3        ; Value 
-    call mpsc_write_both
-
-    ; WR5:
-    mov al, 0x05        ; Select WR5
-    mov bl, 0xE6        ; Value
+    ; CR3: 受信動作の有効化
+    mov al, 3
+    mov bl, 0xC1        ; データ 8bit，受信イネーブル
     call mpsc_write_both
     
-    ; Reset Tx/Rx Interrupt (WR0)
-    mov dx, MPSC1_CTRL
-    mov al, 0x80        ; Reset Tx Int 
-    out dx, al
-    mov al, 0x40        ; Reset Rx Int 
-    out dx, al
-
+    ; CR5: 送信動作の有効化とモデム制御ピンのアサート
+    mov al, 5
+    mov bl, 0xEA        ; データ 8bit，送信イネーブル
+    call mpsc_write_both
+    
     ret
 
 ; --- Helper: Write to both MPSC1 and MPSC2 ---
