@@ -1,10 +1,7 @@
 ; =================================================================
-; V53 ROM Monitor for DVE-554 v0.1 2026-04-05
+; V53 ROM Monitor for DVE-554 v0.1  2026-04-05
 ; Target: DVE-554 SIO VME Board
 ; =================================================================
-
-[BITS 16]
-[ORG 0x8000]
 
 ; --- ビルド方法 ---
 ; nasm -f bin v53sio_mon.asm -o v53sio_mon.bin -l v53sio_mon.lst
@@ -14,38 +11,11 @@
 ;%define ROM_SIZE_1024  0x20000  ; 27C010 (128KB)
 ; 使用するROMサイズを選択
 ;%define ROM_TOTAL     ROM_SIZE_1024
-%define ROM_SIZE_32K  0x8000
+%define ROM_SIZE_64K  0x10000
 ; 使用するROMサイズを選択
-%define ROM_TOTAL     ROM_SIZE_32K
+%define ROM_TOTAL     ROM_SIZE_64K
 ; ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
-
-; ==========================================
-; V53 System Register
-; ==========================================
-%define SCTL    0x0FFFE ; システム・コントロール・レジスタ
-%define OPSEL   0x0FFFD ; 内蔵ペリフェラル選択レジスタ
-%define OPHA    0x0FFFC ; 内蔵ペリフェラル・リロケーション・レジスタ
-%define DULA    0x0FFFB ; 
-%define IULA    0x0FFFA ; 
-%define TULA    0x0FFF9 ; 
-%define SULA    0x0FFF8 ; SCUリロケーション・レジスタ 
-%define WCY4    0x0FFF6 ; プログラマブル・ウェイト・サイクル数設定レジスタ4
-%define WCY3    0x0FFF5 ; プログラマブル・ウェイト・サイクル数設定レジスタ3
-%define WCY2    0x0FFF4 ; プログラマブル・ウェイト・サイクル数設定レジスタ2
-%define WMB1    0x0FFF3 ; プログラマブル・ウェイト・メモリ領域設定レジスタ1
-%define RFC     0x0FFF2 ; リフレッシュ・コントロール・レジスタ
-%define SBCR    0x0FFF1 ; 
-%define TCKS    0x0FFF0 ; 
-%define WAC     0x0FFED ; プログラマブル・ウェイト・メモリ・アドレス・コントロール・レジスタ
-%define WCY0    0x0FFEC ; プログラマブル・ウェイト・サイクル数設定レジスタ0
-%define WCY1    0x0FFEB ; プログラマブル・ウェイト・サイクル数設定レジスタ1
-%define WMB0    0x0FFEA ; プログラマブル・ウェイト・メモリ領域設定レジスタ0
-%define BRC     0x0FFE9 ; ボー・レート・カウンタ
-%define BADR    0x0FFE1 ; 
-%define BSEL    0x0FFE0 ; 
-%define XAM     0x0FF80 ; 
-%define PGR     0x0FF00 ; 
-
+ 
 ; --- RAM上の変数マップ (ES=0x0000 を前提に使用) ---
 ; 0x0000-0x03FF は割り込みベクタ(IVT)なので避ける
 %define VAR_DUMP_SEG    0x0400  ; Dump: セグメント保存用
@@ -56,15 +26,25 @@
 %define MPSC1_DATA 0x00A0
 %define MPSC2_CTRL 0x00AA
 %define MPSC2_DATA 0x00A8
+%define TX_READY   0x04
+%define RX_READY   0x01
+
+    org 0
+    cpu 186
+
+section .text
 
 start:
     cli                     ; 割り込み禁止
-    cld                     ; 文字列処理を前方へ
-    mov     sp, 0x7FFF      ; SP = 0x7FFF 初期化
+
+    ; ---------------------------------------------
+    ; 1. セグメントレジスタ初期化
+    ; ---------------------------------------------
     mov     ax, 0x0000
     mov     ds, ax          ; DS = 0000h
     mov     es, ax          ; ES = 0000h
     mov     ss, ax          ; SS = 0000h
+    mov     sp, 0x7FFF      ; SP = 0x7FFF 初期化
 
     ; --- 2. V53 システムレジスタ初期化 ---
     call v53_sysreg_init
@@ -344,7 +324,7 @@ putc:
     mov dx, MPSC1_CTRL
 .wait_tx:
     in al, dx
-    test al, 0x04   ; D2: Tx Buffer Empty?
+    test al, TX_READY   ; D2: Tx Buffer Empty?
     jz .wait_tx
     mov dx, MPSC1_DATA
     pop ax
@@ -358,7 +338,7 @@ getc:
     mov dx, MPSC1_CTRL
 .wait_rx:
     in al, dx
-    test al, 0x01   ; D0: RX Ready?
+    test al, RX_READY   ; D0: RX Ready?
     jz .wait_rx
     mov dx, MPSC1_DATA
     in al, dx
@@ -731,12 +711,11 @@ msg_go:   db "Go!",0
 ; -----------------------------------------------------------------
 reset_vector:
     ; ROMの開始アドレスへジャンプする
-    ; 1MBit ROMの場合、物理アドレスは E0000h～FFFFFh にマップされるが、
-    ; オリジナルのROMではF000:8100にジャンプしている。
+    ; SIOボードに実装されていた27C1024 ROMの場合、
+    ; 物理アドレスは E0000h～FFFFFh にマップされるが、
+    ; このモニタではF000:0000にジャンプしている。
     
-    cli
-    cld
-    jmp 0xF000:0x8000   ; Far Jump to start of 128KB ROM
+    jmp 0xF000:0x0000   ; Far Jump to start of 128KB ROM
 
     ; ファイルサイズがぴったりROMサイズになるよう調整
     times 16 - ($ - reset_vector) db 0xFF
