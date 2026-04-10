@@ -26,5 +26,11 @@ https://kanpapa.com/2026/01/v53-vme-system-1.html
 * [images](images)
   * Board photos and images.
 
+* DVE-554 SIO(Serial I/O) board 
+  * [SIO/hello_world](SIO/hello_world)
+    * DVE-554 Analysis Test Code.
+  * [SIO/monitor](SIO/monitor)
+    * V53 ROM Monitor for DVE-554.
+
 ## Disclaimer
 The contents of this repository are the result of personal research and are provided "as is" without any warranty.
