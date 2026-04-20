@@ -27,17 +27,17 @@
     ; V53 SCU (00F0Hに配置）
     ; SCUはモニタでは使用しないため、レジスタ定義は省略します。
 
-    ; uPD72001 MPSC #1 (00A0Hに配置)
-    %define MPSC1_A_DATA 0x00A0 ; MPSC#1 Channel A Data Register
-    %define MPSC1_A_CTRL 0x00A2 ; MPSC#1 Channel A Control Register
-    %define MPSC1_B_DATA 0x00A8 ; MPSC#2 Channel B Data Register
-    %define MPSC1_B_CTRL 0x00AA ; MPSC#2 Channel B Control Register
+    ; uPD72001 MPSC #1
+    %define MPSC1_A_DATA 0x00A0 ; MPSC #1 Channel A Data Register
+    %define MPSC1_A_CTRL 0x00A2 ; MPSC #1 Channel A Control Register
+    %define MPSC1_B_DATA 0x00A4 ; MPSC #1 Channel B Data Register
+    %define MPSC1_B_CTRL 0x00A6 ; MPSC #1 Channel B Control Register
 
-    ; uPD72001 MPSC #2 (00B0Hに配置)
-    %define MPSC2_A_DATA 0x00B0 ; MPSC#2 Channel A Data Register
-    %define MPSC2_A_CTRL 0x00B2 ; MPSC#2 Channel A Control Register
-    %define MPSC2_B_DATA 0x00B8 ; MPSC#2 Channel B Data Register
-    %define MPSC2_B_CTRL 0x00BA ; MPSC#2 Channel B Control Register
+    ; uPD72001 MPSC #2
+    %define MPSC2_A_DATA 0x00A8 ; MPSC #2 Channel A Data Register
+    %define MPSC2_A_CTRL 0x00AA ; MPSC #2 Channel A Control Register
+    %define MPSC2_B_DATA 0x00AC ; MPSC #2 Channel B Data Register
+    %define MPSC2_B_CTRL 0x00AE ; MPSC #2 Channel B Control Register
 
     %define TX_READY   0x04
     %define RX_READY   0x01
@@ -76,7 +76,7 @@ start:
     mov es, ax              ; ES = 0000h (Vector Table Segment)
 
     ; Vector 10h 登録
-    mov word [es:0x40], _isr_int10h      ; オフセットを書き込み　0x20 * 4 = 0x80
+    mov word [es:0x40], _isr_int10h     ; オフセットを書き込み　0x10 * 4 = 0x40
     mov word [es:0x42], cs              ; 現在のコードセグメントを書き込み
 
     ; Vector 11h 登録
@@ -155,7 +155,7 @@ start:
     ; --- 8. 割り込み許可 ---
     sti
 
-    mov al, 00h    ; IMKW: 11111000b (INTP0-INTP2を許可）
+    mov al, 00h    ; IMKW: 00000000b (全マスクを解除）
     out dx, al
 
     ; 変数初期化 (RAMエリアをクリア)
@@ -993,8 +993,8 @@ _isr_intp4:
     inc  word [intp4_flag]
     
     ; --- 画面表示 ---
-    mov  si, msg_intp4
-    call puts
+    ;mov  si, msg_intp4
+    ;call puts
 
     ; EOI発行
     mov  al, 20h
