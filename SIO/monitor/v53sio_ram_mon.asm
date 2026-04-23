@@ -527,8 +527,10 @@ do_out:
     
     out dx, al          ; I/O Write
     
+    call putc_crlf      ; 書き込み完了後、まず改行する
     mov si, msg_done    ; DONEを表示。改行付き。
     call puts
+    
     jmp monitor_loop    ; モニタのメインルーチンに飛ぶ
 
 error_pop:
