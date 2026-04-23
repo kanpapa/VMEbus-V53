@@ -1,5 +1,5 @@
 ; =================================================================
-; V53 Monitor System v0.12 2026-03-03
+; V53 Monitor System v0.13 2026-04-23
 ; Target: V53 VME Board & DOSBox-X Simulation
 ; =================================================================
 
@@ -112,9 +112,9 @@ start:
     ; ------------------------------
 
     ;==============================================
-    ; ABORT (NMI) Handler Setup 
+    ; Interrupt Vector Setup 
     ;==============================================
-Init_NMI:
+Init_Interrupt_Vectors:
     ; ----------------------------------------------------
     ; 1. 全ベクタ (00h-FFh) をデフォルトハンドラで埋める
     ;    (予期せぬ割り込みによる暴走を防ぐ安全策)
@@ -131,105 +131,60 @@ Init_NMI:
     stosw               ; Segment書き込み
     loop .init_loop
 
+    ; 専用割り込みベクタを上書き登録 (0x00 - 0x05)
     xor  ax, ax
-    mov  es, ax          ; ES = 0000h
+    mov  es, ax         ; ES = 0000h
+
+    mov word [es:0x00], _isr_stub_0    ; オフセットを書き込み　0x00 * 4 = 0x00
+    mov word [es:0x02], cs             ; 現在のコードセグメントを書き込み
+
+    mov word [es:0x04], _isr_stub_1    ; オフセットを書き込み　0x01 * 4 = 0x04
+    mov word [es:0x06], cs             ; 現在のコードセグメントを書き込み
+
+    mov word [es:0x08], _isr_stub_2    ; オフセットを書き込み　0x02 * 4 = 0x08
+    mov word [es:0x0A], cs             ; 現在のコードセグメントを書き込み
+
+    mov word [es:0x0C], _isr_stub_3    ; オフセットを書き込み　0x03 * 4 = 0x0C
+    mov word [es:0x0E], cs             ; 現在のコードセグメントを書き込み
+
+    mov word [es:0x10], _isr_stub_4    ; オフセットを書き込み　0x04 * 4 = 0x10
+    mov word [es:0x12], cs             ; 現在のコードセグメントを書き込み
     
-    ; 専用割り込みベクタを上書き登録 (0 - 5)
-    mov  di, 0x0000      ; 0x0 * 4 = 0h
-    mov  ax, _isr_stub_0
-    stosw
-    mov  ax, cs
-    stosw
+    mov word [es:0x14], _isr_stub_5    ; オフセットを書き込み　0x05 * 4 = 0x14
+    mov word [es:0x16], cs             ; 現在のコードセグメントを書き込み
 
-    mov  di, 0x0004      ; 0x1 * 4 = 4h
-    mov  ax, _isr_stub_1
-    stosw
-    mov  ax, cs
-    stosw
+    ; ICU割り込みベクタを上書き登録 (0x20 - 0x27)    
+    ; Vector 20h (ICU INTP0) 登録
+    mov word [es:0x80], _isr_stub_20    ; オフセットを書き込み　0x20 * 4 = 0x80
+    mov word [es:0x82], cs              ; 現在のコードセグメントを書き込み
 
-    ; 割り込みベクタテーブル (Vector 2 = NMI) の書き換え
-    mov  di, 0x0008      ; Vector 2 Address offset
-    mov  ax, NMI_Handler ; ハンドラのアドレス (IP)
-    stosw                ; [0000:0008] = AX
-    mov  ax, cs          ; 現在のCS
-    stosw                ; [0000:000A] = CS
+    ; Vector 21h (ICU INTP1) 登録
+    mov word [es:0x84], _isr_stub_21
+    mov word [es:0x86], cs
 
-    mov  di, 0x000c      ; 0x3 * 4 = 0ch
-    mov  ax, _isr_stub_3
-    stosw
-    mov  ax, cs
-    stosw
+    ; Vector 22h (ICU INTP2) 登録
+    mov word [es:0x88], _isr_stub_22
+    mov word [es:0x8A], cs
 
-    mov  di, 0x0010      ; 0x4 * 4 = 10h
-    mov  ax, _isr_stub_4
-    stosw
-    mov  ax, cs
-    stosw
+    ; Vector 23h (ICU INTP3) 登録
+    mov word [es:0x8C], _isr_stub_23
+    mov word [es:0x8E], cs
 
-    mov  di, 0x0014      ; 0x5 * 4 = 14h
-    mov  ax, _isr_stub_5
-    stosw
-    mov  ax, cs
-    stosw
+    ; Vector 24h (ICU INTP4) 登録
+    mov word [es:0x90], _isr_stub_24
+    mov word [es:0x92], cs
 
-    ; ICU割り込みベクタを上書き登録 (0x20 - 0x27)
-    
-    ; Vector 20h (ICU INTP0)
-    mov  di, 0x0080      ; 0x20 * 4 = 80h
-    mov  ax, _isr_stub_20
-    stosw
-    mov  ax, cs
-    stosw
+    ; Vector 25h (ICU INTP5) 登録
+    mov word [es:0x94], _isr_stub_25
+    mov word [es:0x96], cs
 
-    ; Vector 21h (ICU INTP1)
-    mov  di, 0x0084
-    mov  ax, _isr_stub_21
-    stosw
-    mov  ax, cs
-    stosw
+    ; Vector 26h (ICU INTP6) 登録
+    mov word [es:0x98], _isr_stub_26
+    mov word [es:0x9A], cs
 
-    ; Vector 22h (ICU INTP2)
-    mov  di, 0x0088
-    mov  ax, _isr_stub_22
-    stosw
-    mov  ax, cs
-    stosw
-
-    ; Vector 23h (ICU INTP3)
-    mov  di, 0x008C
-    mov  ax, _isr_stub_23
-    stosw
-    mov  ax, cs
-    stosw
-
-    ; Vector 24h (ICU INTP4)
-    mov  di, 0x0090
-    mov  ax, _isr_stub_24
-    stosw
-    mov  ax, cs
-    stosw
-
-    ; Vector 25h (ICU INTP5)
-    mov  di, 0x0094
-    mov  ax, _isr_stub_25
-    stosw
-    mov  ax, cs
-    stosw
-
-    ; Vector 26h (ICU INTP6)
-    mov  di, 0x0098
-    mov  ax, _isr_stub_26
-    stosw
-    mov  ax, cs
-    stosw
-
-    ; Vector 27h (ICU INTP7 <-- PIC)
-    ; PIC Dispatcher
-    mov  di, 0x009c      ; Vector 27h Address offset
-    mov  ax, _pic_dispatch_handler
-    stosw                ; [0000:009c] = AX
-    mov  ax, cs          ; 現在のCS
-    stosw                ; [0000:009e] = CS
+    ; Vector 27h (ICU INTP7) 登録
+    mov word [es:0x9C], _pic_dispatch_handler
+    mov word [es:0x9E], cs
 
     ; ---------------------------------------------
     ; 1.2 メモリウェイト値の設定
@@ -403,7 +358,8 @@ Init_NMI:
     out dx, al
 
     ; Bit 7 (INTP7) を 0 (許可) にその他は禁止します。
-    mov al, 7Fh     ; 0111 1111
+    ;mov al, 7Fh     ; 0111 1111
+    mov al, 00h     ; 0000 0000 全マスク解除
     out dx, al
 
     ;-------------------------------------------
@@ -1107,194 +1063,8 @@ error:
     jmp monitor_loop
 
 ;==========================================================
-; NMI (ABORT) Handler
+; Interrupt Handler
 ;==========================================================
-
-NMI_Handler:
-    ; 1. 全レジスタを退避 (V53は80186互換なのでPUSHAが使えます)
-    pusha               ; DI, SI, BP, SP, BX, DX, CX, AX の順でPush
-    push ds
-    push es
-
-    ; 2. セグメントをモニタ用に設定 (表示ルーチンを使うため)
-    mov  ax, cs
-    mov  ds, ax
-    mov  es, ax
-
-    ; 3. スタックフレームへのポインタ設定
-    mov  bp, sp
-
-    ; --- 画面表示 ---
-    mov  si, msg_nmi
-    call puts           ; " *** ABORT INTERRUPT ***"
-
-    ; 3. レジスタ表示 (スタックから読み出して表示)
-    ; Stack Layout after pushes:
-    ; BP+0: ES
-    ; BP+2: DS
-    ; BP+4: DI
-    ; BP+6: SI
-    ; BP+8: BP (Old)
-    ; BP+10: SP (Original)
-    ; BP+12: BX
-    ; BP+14: DX
-    ; BP+16: CX
-    ; BP+18: AX
-    ; BP+20: IP (Return Addr)
-    ; BP+22: CS (Return Addr)
-    ; BP+24: Flags
-    
-    ; AX
-    mov  si, msg_ax
-    call puts
-    mov  ax, [bp+18]        ; PUSHAで保存されたAX
-    call print_hex_word     ; 4桁HEX表示ルーチン
-
-    ; BX
-    mov  si, msg_bx
-    call puts
-    mov  ax, [bp+12]
-    call print_hex_word
-
-    ; CX
-    mov  si, msg_cx
-    call puts
-    mov  ax, [bp+16]
-    call print_hex_word
-
-    ; DX
-    mov  si, msg_dx
-    call puts
-    mov  ax, [bp+14]
-    call print_hex_word
-
-    call putc_crlf
-
-    ; --- 中断地点 (CS:IP) の表示 ---
-    ; PUSHA(16byte) + DS(2) + ES(2) = 20byte
-    ; その上が割り込み発生時の IP, CS, Flags です
-    
-    mov  si, msg_addr
-    call puts           ; " Stop at "
-    mov  ax, [bp+22]    ; Stack上の CS
-    call print_hex_word
-    mov  al, ':'
-    call putc
-    mov  ax, [bp+20]    ; Stack上の IP
-    call print_hex_word
-
-    call putc_crlf
-
-    ; 4. 復帰処理
-    ; ここでモニタのコマンド待ちへ強制ジャンプします
-    ; (レジスタはスタックに残ったままになりますが、モニタ再起動でリセットされる前提)
-    jmp  start  ; モニタの開始ラベルへ
-
-; ==========================================================
-; Default Interrupt Handler (Trap for unused interrupts)
-; ==========================================================
-
-; --- 共通処理部 (Common Handler) ---
-_default_int_handler:
-    ; 1. 全レジスタを退避 (V53は80186互換なのでPUSHAが使えます)
-    push bp
-    pusha               ; DI, SI, BP, SP, BX, DX, CX, AX の順でPush
-    push ds
-    push es
-
-    ; 2. セグメントをモニタ用に設定 (表示ルーチンを使うため)
-    mov  ax, cs
-    mov  ds, ax
-    mov  es, ax
-
-    ; 3. スタックフレームへのポインタ設定
-    mov  bp, sp
-
-    ; --- メッセージ表示 ---
-    mov  si, msg_int_trap
-    call puts           ; "** INT "
-
-    ; --- ベクタ番号の表示 ---
-    ; スタック構造:
-    ; [BP+0] Old BP
-    ; [BP+2] Vector Number (スタブでPUSHした値: 16bit)
-    ; [BP+4] Return IP ...
-    
-    mov  ax, [bp+2]     ; ベクタ番号を取得
-    call print_hex_byte ; 表示 (例: 25)
-
-    mov  si, msg_detected
-    call puts           ; " detected **" (改行含む)
-
-; 3. レジスタ表示 (スタックから読み出して表示)
-    ; Stack Layout after pushes:
-    ; BP+0: ES
-    ; BP+2: DS
-    ; BP+4: DI
-    ; BP+6: SI
-    ; BP+8: BP (Old)
-    ; BP+10: SP (Original)
-    ; BP+12: BX
-    ; BP+14: DX
-    ; BP+16: CX
-    ; BP+18: AX
-    ; BP+20: IP (Return Addr)
-    ; BP+22: CS (Return Addr)
-    ; BP+24: Flags
-    
-    ; AX
-    mov  si, msg_ax
-    call puts
-    mov  ax, [bp+18]        ; PUSHAで保存されたAX
-    call print_hex_word     ; 4桁HEX表示ルーチン
-
-    ; BX
-    mov  si, msg_bx
-    call puts
-    mov  ax, [bp+12]
-    call print_hex_word
-
-    ; CX
-    mov  si, msg_cx
-    call puts
-    mov  ax, [bp+16]
-    call print_hex_word
-
-    ; DX
-    mov  si, msg_dx
-    call puts
-    mov  ax, [bp+14]
-    call print_hex_word
-
-    call putc_crlf
-
-    ; --- 中断地点 (CS:IP) の表示 ---
-    ; PUSHA(16byte) + DS(2) + ES(2) = 20byte
-    ; その上が割り込み発生時の IP, CS, Flags です
-    
-    mov  si, msg_addr
-    call puts           ; " Stop at "
-    mov  ax, [bp+22]    ; Stack上の CS
-    call print_hex_word
-    mov  al, ':'
-    call putc
-    mov  ax, [bp+20]    ; Stack上の IP
-    call print_hex_word
-
-    call putc_crlf
-
-    ; --- EOI (End of Interrupt) to PIC, ICU ---
-    mov al, 20h         ; Non-specific EOI
-    out PIC_REG0, al    ; 外部PIC (Slave) の割り込み完了
-    mov dx, ICU_REG0    ; V53内蔵ICU (Master) の割り込み完了
-    out dx, al
-
-    pop  es
-    pop  ds
-    popa
-    pop  bp
-    add  sp, 2          ; スタブでPUSHしたベクタ番号分(2byte)をスタックから捨てる
-    iret
 
 ; --- 各ベクタ用スタブ (Entry Points) ---
 ; ベクタ番号をスタックに積んで共通処理へジャンプします
@@ -1303,7 +1073,8 @@ _isr_stub_0:  push 0x0          ; 0: Division by zero
               jmp _default_int_handler
 _isr_stub_1:  push 0x1          ; 1: Break flag
               jmp _default_int_handler
-                                ; 2: NMI
+_isr_stub_2:  push 0x2          ; 2: NMI
+              jmp _default_int_handler
 _isr_stub_3:  push 0x3          ; 3: BRK3
               jmp _default_int_handler
 _isr_stub_4:  push 0x4          ; 4: BRKV
@@ -1327,6 +1098,106 @@ _isr_stub_26: push 0x0026       ; 38: ICU INTP6
               jmp _default_int_handler
 
 ; Note: Vector 27h (INTP7) は _pic_dispatch_handler で使用中なのでここには含めません
+
+; ==========================================================
+; Default Interrupt Handler (Trap for unused interrupts)
+; ==========================================================
+
+; --- 共通処理部 (Common Handler) ---
+_default_int_handler:
+    ; 1. 全レジスタを退避 (V53は80186互換なのでPUSHAが使えます)
+    pusha               ; DI, SI, BP, SP, BX, DX, CX, AX (16 bytes)
+    push ds
+    push es
+
+    ; 2. セグメントをモニタ用に設定 (表示ルーチンを使うため)
+    mov  ax, cs
+    mov  ds, ax
+    mov  es, ax
+    mov  bp, sp
+
+    ; --- メッセージ表示 ---
+    mov  si, msg_int_trap
+    call puts           ; "** INT "
+
+    ; --- ベクタ番号の表示 ---
+    mov  ax, [bp+20]    ; ベクタ番号を取得
+    call print_hex_byte ; 表示 (例: 25)
+
+    mov  si, msg_detected
+    call puts           ; " detected **" (改行含む)
+
+    ; 4. レジスタ表示 (スタックから読み出して表示)
+    ; Stack Layout after pushes:
+    ; BP+0: ES　最後にpushしたもの
+    ; BP+2: DS
+    ; BP+4: DI　pushaの開始
+    ; BP+6: SI
+    ; BP+8: BP (Old)
+    ; BP+10: SP (Original)
+    ; BP+12: BX
+    ; BP+14: DX
+    ; BP+16: CX
+    ; BP+18: AX pushaの終了
+    ; BP+20: Vector Number スタブでpushした値
+    ; BP+22: IP 割り込み発生時の戻り先
+    ; BP+24: CS (Return Addr)
+    ; BP+26: Flags
+    
+    ; AX
+    mov  si, msg_ax
+    call puts
+    mov  ax, [bp+18]        ; PUSHAで保存されたAX
+    call print_hex_word     ; 4桁HEX表示ルーチン
+
+    ; BX
+    mov  si, msg_bx
+    call puts
+    mov  ax, [bp+12]
+    call print_hex_word
+
+    ; CX
+    mov  si, msg_cx
+    call puts
+    mov  ax, [bp+16]
+    call print_hex_word
+
+    ; DX
+    mov  si, msg_dx
+    call puts
+    mov  ax, [bp+14]
+    call print_hex_word
+
+    call putc_crlf
+
+    ; --- 中断地点 (CS:IP) の表示 ---
+    mov  si, msg_addr
+    call puts           ; " Stop at "
+    mov  ax, [bp+24]    ; Stack上の CS
+    call print_hex_word
+    mov  al, ':'
+    call putc
+    mov  ax, [bp+22]    ; Stack上の IP
+    call print_hex_word
+
+    call putc_crlf
+
+    mov  ax, [bp+20]    ; Stack上の ベクタ番号
+    cmp  ax, 0x20
+    jb   .no_eoi         ; ベクタ番号 < 20h (PIC/ICU以外) ならEOI不要
+
+    ; --- EOI (End of Interrupt) to PIC, ICU ---
+    mov al, 20h         ; Non-specific EOI
+    out PIC_REG0, al    ; 外部PIC (Slave) の割り込み完了
+    mov dx, ICU_REG0    ; V53内蔵ICU (Master) の割り込み完了
+    out dx, al
+.no_eoi:
+
+    pop  es
+    pop  ds
+    popa
+    add  sp, 2          ; スタブでPUSHしたベクタ番号分(2byte)をスタックから捨てる
+    iret
 
 ; ==========================================================
 ; PIC Dispatch Handler (Vector 27h)
@@ -1470,7 +1341,7 @@ _default_int_unknown_handler:
     mov si, msg_unknown_int
     call puts
 
-    ; 3. レジスタ表示 (スタックから読み出して表示)
+    ; 4. レジスタ表示 (スタックから読み出して表示)
     ; Stack Layout after pushes:
     ; BP+0: ES
     ; BP+2: DS
@@ -1527,7 +1398,7 @@ _default_int_unknown_handler:
 
     call putc_crlf
 
-    ; 4. 復帰処理
+    ; 5. 復帰処理
     ; ここでモニタのコマンド待ちへ強制ジャンプします
     ; (レジスタはスタックに残ったままになりますが、モニタ再起動でリセットされる前提)
     jmp  start  ; モニタの開始ラベルへ
@@ -1540,7 +1411,7 @@ _default_int_unknown_handler:
 ; =================================================================
 ; Data
 ; =================================================================
-msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.12 2026-03-03  **",0x0D,0x0A,0
+msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR v0.13 2026-04-23  **",0x0D,0x0A,0
 msg_load: db "Load HEX...",0
 msg_ok:   db "OK",0
 msg_go:   db "Go!",0
@@ -1557,17 +1428,14 @@ msg_space:      db "  ", 0
 msg_abort:      db "Aborted.", 0x0D, 0x0A, 0
 msg_tick:   db "Tick: ", 0
 
-; --- NMIハンドラメッセージ定義 ---
-msg_nmi:  db 0x0D, 0x0A, "*** ABORT (NMI) ***", 0x0D, 0x0A, 0
+; 割り込みハンドラメッセージ
+msg_int_trap: db "** INT ", 0
+msg_detected: db " detected **", 0
 msg_ax:   db " AX=", 0
 msg_bx:   db " BX=", 0
 msg_cx:   db " CX=", 0
 msg_dx:   db " DX=", 0
 msg_addr: db " Stop at CS:IP = ", 0
-
-; デフォルト割り込みハンドラメッセージ
-msg_int_trap: db "** INT ", 0
-msg_detected: db " detected **", 0
 
 ; PICディスパッチハンドラメッセージ
 msg_int_scsi:       db "** PIC INTP1 SCSI **", 0x0D, 0x0A, 0
