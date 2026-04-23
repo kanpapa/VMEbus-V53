@@ -1,0 +1,59 @@
+     1                                  ; CPU Board (Master) Side
+     2                                  ; 1300h(Write): Register A (LED Switch) / 1300h(Read): Register B (SIO Status)
+     3                                  
+     4                                          ORG 0h
+     5                                  
+     6                                  START:
+     7 00000000 BA0013                          MOV DX, 1300h
+     8                                          ; --- LED点灯 ＋ 処理要求 ---
+     9 00000003 B081                            MOV AL, 081h        
+    10 00000005 EE                              OUT DX, AL
+    11                                          ; ちょっと待つ
+    12 00000006 B9FFFF                          mov cx, 0ffffh
+    13 00000009 E2FE                            loop $
+    14                                          
+    15                                          ; --- SIO側の完了報告(レジスタB)を待つ ---
+    16                                          ; 何か値が書き込まれたら(00h以外になったら)次へ進む
+    17                                  WAIT_DONE:
+    18 0000000B EC                              IN  AL, DX
+    19 0000000C 08C0                            OR  AL, AL          ; 00h かどうかチェック
+    20 0000000E 74FB                            JZ  WAIT_DONE       ; 00h の間はループ
+    21                                  
+    22                                          ; --- 完了を確認したのでLED消灯 ---
+    23 00000010 B000                            MOV AL, 00h
+    24 00000012 EE                              OUT DX, AL
+    25                                          ; ちょっと待つ
+    26 00000013 B9FFFF                          mov cx, 0ffffh
+    27 00000016 E2FE                            loop $
+    28                                  
+    29                                          ; --- SIO側がフラグを下ろすのを待つ ---
+    30                                  WAIT_ACK:
+    31 00000018 EC                              IN  AL, DX
+    32 00000019 08C0                            OR  AL, AL
+    33 0000001B 75FB                            JNZ WAIT_ACK        ; 00h に戻るまで待機
+    34                                  
+    35                                          ; 肉眼確認用のウェイト
+    36 0000001D E80200                          call Delay
+    37                                  
+    38 00000020 EBDE                            JMP START
+    39                                  
+    40                                          ;--- ウェイトルーチン (二重ループ) ---
+    41                                  Delay:
+    42 00000022 53                              push bx             ; レジスタ退避
+    43 00000023 51                              push cx
+    44                                  
+    45 00000024 BB2000                          mov  bx, 0x0020     ; 外側ループ回数 (約32回)
+    46                                  
+    47                                  Delay_Outer:
+    48 00000027 B90000                          mov  cx, 0x0000     ; 内側ループ (0指定で65536回回ります)
+    49                                      
+    50                                  Delay_Inner:
+    51 0000002A 90                              nop                 ; 時間稼ぎ
+    52 0000002B E2FD                            loop Delay_Inner    ; CXを減らしてループ (V53はここが高速)
+    53                                  
+    54 0000002D 4B                              dec  bx             ; 外側カウンタを減らす
+    55 0000002E 75F7                            jnz  Delay_Outer    ; BXが0になるまで繰り返す
+    56                                  
+    57 00000030 59                              pop  cx             ; レジスタ復帰
+    58 00000031 5B                              pop  bx
+    59 00000032 C3                              ret

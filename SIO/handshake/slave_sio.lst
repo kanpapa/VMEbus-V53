@@ -1,0 +1,59 @@
+     1                                  ; SIO Board (Slave) Side
+     2                                  ; 0080h(Read): Register A (Host Cmd/LED) / 0080h(Write): Register B (Status)
+     3                                  
+     4                                          ORG 0h
+     5                                  MAIN:
+     6 00000000 BA8000                          MOV DX, 0080h
+     7                                  
+     8                                          ; --- STEP 1: LED(Bit 7)が点灯したか「だけ」を見る ---
+     9                                  WAIT_REQ:
+    10 00000003 EC                              IN  AL, DX          ; レジスタAを読み出し
+    11 00000004 A880                            TEST AL, 80h        ; Bit 7 が立っているか？
+    12 00000006 74FB                            JZ  WAIT_REQ        ; 0の間はループ
+    13                                  
+    14                                          ; --- STEP 2: SIOボード側の処理 (ここでは単にウェイト) ---
+    15 00000008 E81700                          call Delay          ; ここで少し待つ
+    16                                          
+    17                                          ; --- STEP 3: 処理完了を報告 (レジスタB) ---
+    18                                          ; ホストに「読めたよ！」と伝えるために 01h などを書く
+    19 0000000B B001                            MOV AL, 01h         
+    20 0000000D EE                              OUT DX, AL
+    21                                          ; ちょっと待つ
+    22 0000000E B9FFFF                          mov cx, 0ffffh
+    23 00000011 E2FE                            loop $
+    24                                  
+    25                                          ; --- STEP 4: ホストがLEDを消灯(Bit 7 -> 0)させるのを待つ ---
+    26                                  WAIT_CLR:
+    27 00000013 EC                              IN  AL, DX
+    28 00000014 A880                            TEST AL, 80h        ; Bit 7 が 0 になるのを待つ
+    29 00000016 75FB                            JNZ WAIT_CLR        ; 1の間はループ
+    30                                  
+    31                                          ; --- STEP 4: 完了フラグを下ろす ---
+    32 00000018 B000                            MOV AL, 00h
+    33 0000001A EE                              OUT DX, AL
+    34                                          ; ちょっと待つ
+    35 0000001B B9FFFF                          mov cx, 0ffffh
+    36 0000001E E2FE                            loop $
+    37                                  
+    38 00000020 EBDE                            JMP MAIN
+    39                                  
+    40                                          ;--- ウェイトルーチン (二重ループ) ---
+    41                                  Delay:
+    42 00000022 53                              push bx             ; レジスタ退避
+    43 00000023 51                              push cx
+    44                                  
+    45 00000024 BB2000                          mov  bx, 0x0020     ; 外側ループ回数 (約32回)
+    46                                  
+    47                                  Delay_Outer:
+    48 00000027 B90000                          mov  cx, 0x0000     ; 内側ループ (0指定で65536回回ります)
+    49                                      
+    50                                  Delay_Inner:
+    51 0000002A 90                              nop                 ; 時間稼ぎ
+    52 0000002B E2FD                            loop Delay_Inner    ; CXを減らしてループ (V53はここが高速)
+    53                                  
+    54 0000002D 4B                              dec  bx             ; 外側カウンタを減らす
+    55 0000002E 75F7                            jnz  Delay_Outer    ; BXが0になるまで繰り返す
+    56                                  
+    57 00000030 59                              pop  cx             ; レジスタ復帰
+    58 00000031 5B                              pop  bx
+    59 00000032 C3                              ret
