@@ -1,5 +1,5 @@
 ; =================================================================
-; V53 RAM Monitor for DVE-554 v0.1 2026-04-18
+; V53 RAM Monitor for DVE-554 v0.3 2026-05-02
 ; Target: DVE-554 SIO VME Board
 ; =================================================================
 
@@ -7,6 +7,25 @@
 ; Real:   nasm -f bin v53sio_ram_mon.asm -o v53sio_ram_mon.bin -l v53sio_ram_mon.lst
 ; objcopy -I binary -O ihex --change-addresses=0x0000 v53sio_ram_mon.bin v53sio_ram_mon.hex
 ; -----------------
+
+; 接続:
+;   MPSC#1 INT(Lアクティブ) --[74LS04]--> V53 INTP4 (Hアクティブ)
+;   MPSC#2 INT(Lアクティブ) --[74LS04]--> V53 INTP5 (Hアクティブ)
+;   MPSC#1 INTAK ----------> V53 INTAK (共通)
+;   MPSC#2 INTAK ----------> V53 INTAK (共通)
+;
+; IOアドレス:
+;   MPSC#1 Ch.A CTRL 0x00A2  DATA 0x00A0
+;   MPSC#1 Ch.B CTRL 0x00A6  DATA 0x00A4
+;   MPSC#2 Ch.A CTRL 0x00AA  DATA 0x00A8
+;   MPSC#2 Ch.B CTRL 0x00AE  DATA 0x00AC
+;   V53 ICU     REG0 0x00C0  REG1 0x00C2
+;
+; 割り込みベクタ:
+;   ICU Vector base = 0x20
+;     TCU TOUT0(INTP0) → INT 0x20 
+;   MPSC#1 Vector base = 0x28
+;   MPSC#2 Vector base = 0x30
 
     org 0
     cpu 186
@@ -42,10 +61,13 @@
     %define TX_READY   0x04
     %define RX_READY   0x01
 
+    %define RX_BUF_SIZE 64
+
 section .text
 
 start:
     cli             ; 初期化中は割り込み禁止
+    cld             ; 文字列操作で方向フラグをクリアしておく
 
     ; ---------------------------------------------
     ; 1. セグメントレジスタ初期化
@@ -59,109 +81,21 @@ start:
     mov sp, 0x7FFF
     ; ------------------------------
 
-    ; --- 2. V53 システムレジスタ初期化 ---
-    call v53_sysreg_init
+    call v53_sysreg_init    ; 2. V53 システムレジスタ初期化
+    call v53_tcu_init       ; 3. V53 TCU初期化
+    call v53_icu_init       ; 4. V53 ICU初期化
+    call dve554_io_init     ; 5. 物理IOの初期化（詳細不明）
+    call int_vector_init    ; 6. 割り込みベクタの初期化
+    call mpsc_init          ; 7. MPSC初期化
 
-    ; --- 3. TCU初期化  ---
-    call v53_tcu_init
-
-    ; --- 4. 物理IOの初期化（詳細不明） ---
-    call dve554_io_init
-
-    ; --- 5. MPSC の初期化 ---
-    call mpsc_init
-    
-    ; --- 6. 割り込みベクタの初期化 ---
-    xor ax, ax
-    mov es, ax              ; ES = 0000h (Vector Table Segment)
-
-    ; Vector 10h 登録
-    mov word [es:0x40], _isr_int10h     ; オフセットを書き込み　0x10 * 4 = 0x40
-    mov word [es:0x42], cs              ; 現在のコードセグメントを書き込み
-
-    ; Vector 11h 登録
-    mov word [es:0x44], _isr_int11h
-    mov word [es:0x46], cs
-
-    ; Vector 12h 登録
-    mov word [es:0x48], _isr_int12h
-    mov word [es:0x4A], cs
-
-    ; Vector 13h 登録
-    mov word [es:0x4C], _isr_int13h
-    mov word [es:0x4E], cs
-    
-    ; Vector 14h 登録
-    mov word [es:0x50], _isr_int14h
-    mov word [es:0x52], cs
-
-    ; Vector 15h 登録
-    mov word [es:0x54], _isr_int15h
-    mov word [es:0x56], cs
-
-    ; Vector 16h 登録
-    mov word [es:0x58], _isr_int16h
-    mov word [es:0x5A], cs
-
-    ; Vector 17h 登録
-    mov word [es:0x5C], _isr_int17h
-    mov word [es:0x5E], cs 
-
-
-    ; Vector 20h (INTP0) 登録
-    mov word [es:0x80], _isr_intp0      ; オフセットを書き込み　0x20 * 4 = 0x80
-    mov word [es:0x82], cs              ; 現在のコードセグメントを書き込み
-
-    ; Vector 21h (INTP1) 登録
-    mov word [es:0x84], _isr_intp1
-    mov word [es:0x86], cs
-
-    ; Vector 22h (INTP2) 登録
-    mov word [es:0x88], _isr_intp2
-    mov word [es:0x8A], cs
-
-    ; Vector 22h (INTP3) 登録
-    mov word [es:0x8C], _isr_intp3
-    mov word [es:0x8E], cs
-
-    ; Vector 23h (INTP4) 登録
-    mov word [es:0x90], _isr_intp4 
-    mov word [es:0x92], cs
-
-    ; Vector 24h (INTP5) 登録
-    mov word [es:0x94], _isr_intp5
-    mov word [es:0x96], cs
-
-    ; Vector 25h (INTP6) 登録
-    mov word [es:0x98], _isr_intp6
-    mov word [es:0x9A], cs
-
-    ; Vector 26h (INTP7) 登録
-    mov word [es:0x9C], _isr_intp7
-    mov word [es:0x9E], cs
-
-    ; --- 7. ICU初期化 ---
-    mov dx, ICU_REG0
-    mov al, 12h     ; IIW1: 00010010b (Edge Trigger, Single)
-    out dx, al
-
-    mov dx, ICU_REG1
-    mov al, 20h     ; IIW2: 00100000b (Vector Offset = 20h (INT 32))
-    out dx, al
-
-    mov al, 0ffh    ; IMKW: 11111111b (一旦割り込みをマスクする）
-    out dx, al
-
-    ; --- 8. 割り込み許可 ---
     sti
-
-    mov al, 00h    ; IMKW: 00000000b (全マスクを解除）
-    out dx, al
 
     ; 変数初期化 (RAMエリアをクリア)
     mov word [dump_seg], 0x0000
     mov word [dump_off], 0x0000
     mov word [load_seg], 0x2000
+    mov word [head_ptr], 0x0000
+    mov word [intsys_flag], 0x0000
 
     ; スタートメッセージの表示
     mov si, msg_boot
@@ -597,23 +531,18 @@ do_scan:
     inc bx              ; 次のアドレスへ
     
     ; キー入力チェック（長いスキャンを中断できるようにする）
-    mov dx, MPSC1_A_CTRL
-    in al, dx
-    test al, RX_READY   ; RxRDY?
-    jnz .abort          ; 何かキーが押されたら中断
+    call getc_noblock   ; 1文字取得関数 (非ブロッキング)
+    jc .abort           ; Carry Flag(CF)=1なら何かキーが押されたので中断
 
     cmp bx, cx
     jbe .scan_loop      ; BX <= CX ならループ
 
-    mov si, msg_done
+    mov si, msg_done    ; 終了メッセージの表示
     call puts
     jmp monitor_loop
 
 .abort:
-    ; 入力バッファを空読みしておく
-    mov dx, MPSC1_A_DATA
-    in al, dx
-    mov si, msg_abort
+    mov si, msg_abort   ; 中断メッセージの表示
     call puts
     jmp monitor_loop
 
@@ -630,7 +559,7 @@ do_timer:
     jne error           ; それ以外はエラー
 
     ; --- Wait Mode (引数あり: T 0064 等) ---
-    call get_hex_word   ; AX = 待ち時間 (0064h = 1秒)
+    call get_hex_word   ; AX = 待ち時間 (0x0064 = 1秒)
 
     ; 開始時刻を保存 (Start Time)
     mov bx, [tick_counter_lo]
@@ -708,6 +637,36 @@ putc:
 
 ; 1文字入力
 getc:
+    ; 1文字取得関数 (ブロッキング) ---
+    call getc_noblock
+    jnc getc
+    ret
+
+    ; 1文字取得関数 (非ブロッキング 受信割り込み方式) ---
+    ; 戻り値: AL=データ, Carry Flag(CF)=1ならデータあり/0なら空
+getc_noblock:
+    push bx
+    mov bx, [tail_ptr]
+    cmp bx, [head_ptr]
+    je  .empty               ; 等しければデータなし
+
+    mov al, [rx_buffer + bx]
+    inc bx
+    cmp bx, RX_BUF_SIZE
+    jne .next
+    xor bx, bx
+.next:
+    mov [tail_ptr], bx
+    stc                     ; CF = 1
+    pop bx
+    ret
+.empty:
+    clc                     ; CF = 0
+    pop bx
+    RET
+
+    ; 1文字取得関数 (ブロッキング ポーリング方式) ---
+getc_polling:
     push dx
     mov dx, MPSC1_A_CTRL
 .wait_rx:
@@ -719,7 +678,7 @@ getc:
     pop dx
     ret
 
-; 1文字入力　エコーバックあり
+; 1文字入力 エコーバックあり
 getc_echo:
     call getc
     push ax
@@ -790,7 +749,7 @@ get_hex_word:
     pop bx
     ret
 
-; 16進数2桁入力　エコーバック有り
+; 16進数2桁入力 エコーバック有り
 get_hex_byte_echo:
     push bx
     call getc_echo
@@ -853,18 +812,173 @@ error:
     call puts
     jmp monitor_loop
 
-; ---------------------------------------------------------
-; INTP0 (Vector 20h) ハンドラ　Timer0 (100Hz) 割り込み
-; ---------------------------------------------------------
-align 2
-_isr_intp0:
-    pusha               ; 全汎用レジスタ保存 (AX,CX,DX,BX,SP,BP,SI,DI)
-    push ds             ; セグメントレジスタ保存
+; -----------------------------------------------------------------
+; 割り込みベクタの初期化
+; -----------------------------------------------------------------
+int_vector_init:
+    push ds
     push es
+    cld
 
-    ; --- DSの設定 (重要: 変数にアクセスするため) ---
-    mov ax, cs
-    mov ds, ax
+    mov si, TABLE_INT_VECTOR
+    xor ax, ax
+    mov es, ax          ; es = 0x0000
+
+.set_loop:
+    mov al, [si]        ; al = ベクタ番号 をロード
+    cmp al, 0xff        ; 終端チェック
+    je  .done
+    
+    inc si              ; ベクタ番号分進める
+    mov dx, [si]        ; dx = オフセット退避
+    add si, 2           ; オフセット分進める
+    
+    ; ベクタテーブルのアドレス計算 (VectorNum * 4)
+    ; V53では 0x0000:0xxxxx がベクタ領域
+    xor bh, bh
+    mov bl, al          ; bx = ベクタ番号
+    shl bx, 2           ; bx = bx * 4 (1つのベクタは4バイト)
+
+    ; ベクタの書き換え
+    mov [es:bx], dx        ; オフセットを書き込み
+    mov ax, cs             ; 現在のcsを取得
+    mov [es:bx+2], ax      ; セグメントとして書き込み
+
+    jmp  .set_loop       ; 次のベクタへ
+
+.done:
+    pop  es
+    pop  ds
+    ret
+
+    ; 割り込みベクタの初期化テーブル
+    ; 設定したいベクタのリスト (ベクタ番号, ハンドラのオフセット)
+ALIGN 2
+TABLE_INT_VECTOR:
+    ; INT 0x00 ～ 0x05
+    db 0x00                         
+    dw _isr_int0x00      ;INT 0x00: DIV/DIVU Divide Error
+    db 0x01
+    dw _isr_int0x01      ;INT 0x01: BRK Flag (Simgle Step)
+    db 0x02
+    dw _isr_int0x02      ;INT 0x02: NMI
+    db 0x03
+    dw _isr_int0x03      ;INT 0x03: BRK3
+    db 0x04
+    dw _isr_int0x04      ;INT 0x04: BRKV
+    db 0x05
+    dw _isr_int0x05      ;INT 0x05: CHKIND境界オーバー
+    ; INT 0x20 ～ 0x27
+    ; V53 ICUのハンドラ
+    db 0x20
+    dw _isr_int0x20      ;INT 0x20 ICU INTP0 割り込みハンドラ (タイマー割り込み)
+    db 0x21
+    dw _isr_int0x21      ;INT 0x21 ICU INTP1 未使用
+    db 0x22
+    dw _isr_int0x22      ;INT 0x22 ICU INTP2 未使用
+    db 0x23
+    dw _isr_int0x23      ;INT 0x23 ICU INTP3 未使用：TOUT1に接続された割り込み
+    db 0x24
+    dw _isr_int0x24      ;INT 0x24 ICU INTP4 未使用
+    db 0x25
+    dw _isr_int0x25      ;INT 0x25 ICU INTP5 未使用
+    db 0x26
+    dw _isr_int0x26      ;INT 0x26 ICU INTP6 未使用：TOUT2に接続された割り込み
+    db 0x27
+    dw _isr_int0x27      ;INT 0x27 ICU INTP7 未使用
+    ; INT 0x28 ～ 0x2f
+    ; MPSC#1のハンドラ
+    db 0x28
+    dw _isr_int0x28      ;INT 0x28 MPSC#1 Ch.B 未使用
+    db 0x29
+    dw _isr_int0x29      ;INT 0x29 MPSC#1 Ch.B 未使用
+    db 0x2a
+    dw _isr_int0x2a      ;INT 0x2A MPSC#1 Ch.B 未使用
+    db 0x2b
+    dw _isr_int0x2b      ;INT 0x2B MPSC#1 Ch.B 未使用
+    db 0x2c
+    dw _isr_int0x2c      ;INT 0x2C MPSC#1 Ch.A 未使用
+    db 0x2d
+    dw _isr_int0x2d      ;INT 0x2D MPSC#1 Ch.A 未使用
+    db 0x2e
+    dw _isr_int0x2e      ;INT 0x2E MPSC#1 Ch.A 受信割り込みハンドラ
+    db 0x2f
+    dw _isr_int0x2f      ;INT 0x2F MPSC#1 Ch.A 未使用
+    ; INT 0x30 ～ 0x37        
+    ; MPSC#2のハンドラ
+    db 0x30
+    dw _isr_int0x30      ;INT 0x30 MPSC#2 Ch.B 未使用
+    db 0x31
+    dw _isr_int0x31      ;INT 0x31 MPSC#2 Ch.B 未使用
+    db 0x32
+    dw _isr_int0x32      ;INT 0x32 MPSC#2 Ch.B 未使用
+    db 0x33
+    dw _isr_int0x33      ;INT 0x33 MPSC#2 Ch.B 未使用
+    db 0x34
+    dw _isr_int0x34      ;INT 0x34 MPSC#2 Ch.A 未使用
+    db 0x35
+    dw _isr_int0x35      ;INT 0x35 MPSC#2 Ch.A 未使用
+    db 0x36
+    dw _isr_int0x36      ;INT 0x36 MPSC#2 Ch.A 受信割り込みハンドラ（現在は未使用）
+    db 0x37
+    dw _isr_int0x37      ;INT 0x37 MPSC#2 Ch.A 未使用
+    db 0xff                ; 終端マーカー
+
+; ===================================================
+;  Interrupt handler
+; ===================================================
+; INT 0x00 DIV/DIVU Divide Error
+_isr_int0x00:
+    cli
+    or byte [intsys_flag], 0x01    ; 割り込み発生フラグセット
+    sti
+    iret
+
+; INT 0x01 BRK Flag (Simgle Step)
+_isr_int0x01:
+    cli
+    or byte [intsys_flag], 0x02    ; 割り込み発生フラグセット
+    sti
+    iret
+
+; INT 0x02 NMI
+_isr_int0x02:
+    cli
+    or byte [intsys_flag], 0x04    ; 割り込み発生フラグセット
+    sti
+    iret
+
+; INT 0x03 BRK3
+_isr_int0x03:
+    cli
+    or byte [intsys_flag], 0x08    ; 割り込み発生フラグセット
+    sti
+    iret
+
+; INT 0x04 BRKV
+_isr_int0x04:
+    cli
+    or byte [intsys_flag], 0x10    ; 割り込み発生フラグセット
+    sti
+    iret
+
+; INT 0x05 CHKIND境界オーバー
+_isr_int0x05:
+    cli
+    or byte [intsys_flag], 0x20    ; 割り込み発生フラグセット
+    sti
+    iret
+
+; ---------------------------------------------------------
+; INT 0x20 (INTP0) Timer0 (100Hz) 割り込みハンドラ
+; ---------------------------------------------------------
+_isr_int0x20:
+    cli	                        ;割り込み禁止
+    push ax
+    push bx
+    push dx
+
+    inc word [int0x20_flag]    ; 割り込み発生フラグセット
 
     ; --- 32bit カウンタのインクリメント ---
     inc word [tick_counter_lo]
@@ -873,478 +987,433 @@ _isr_intp0:
 .skip_carry:
     ; --- EOI (End of Interrupt) 発行 ---
     ; これを送らないと次の割り込みが発生しません
-    mov al, 20h         ; Non-Specific EOI
+    mov al, 0x20         ; Non-Specific EOI
     mov dx, ICU_REG0
     out dx, al
 
-    ; --- 復帰処理 ---
-    pop es
-    pop ds
-    popa                ; 保存したレジスタをすべて復帰
-
-    iret                ; 割り込みから復帰 (IP, CS, Flagsをpop)
+    pop dx
+    pop bx
+    pop ax
+    sti	                        ;割り込み許可
+    iret	                    ;割り込み復帰
 
 ; ---------------------------------------------------------
-; INTP1 (Vector 21h) ハンドラ - 詳細不明
+; INT 0x21 (INTP1) ハンドラ - 未使用
 ; ---------------------------------------------------------
-align 2
-_isr_intp1:
-    pusha
-    push ds
-    push es
-
-    ; 1. セグメントをモニタ用に設定 (表示ルーチンを使うため)
-    mov  ax, cs
-    mov  ds, ax
-    mov  es, ax
-
-    ; 2. 発生フラグをセット
-    inc  word [intp1_flag]
-    
-    ; --- 画面表示 ---
-    mov  si, msg_intp1
-    call puts
-    
-    ; EOI発行
-    mov  al, 20h
-    mov  dx, ICU_REG0
-    out  dx, al
-
-    pop  es
-    pop  ds
-    popa
+_isr_int0x21:
+    cli
+    inc word [int0x21_flag]    ; 割り込み発生フラグセット
+    sti
     iret
 
 ; ---------------------------------------------------------
-; INTP2 (Vector 22h) ハンドラ - 詳細不明
+; INT 0x22 (INTP2) ハンドラ - 未使用
 ; ---------------------------------------------------------
-align 2
-_isr_intp2:
-    pusha
-    push ds
-    push es
-
-    ; 1. セグメントをモニタ用に設定 (表示ルーチンを使うため)
-    mov  ax, cs
-    mov  ds, ax
-    mov  es, ax
-
-    ; 2. 発生フラグをセット
-    inc  word [intp2_flag]
-    
-    ; --- 画面表示 ---
-    mov  si, msg_intp2
-    call puts
-
-    ; EOI発行
-    mov  al, 20h
-    mov  dx, ICU_REG0
-    out  dx, al
-
-    pop  es
-    pop  ds
-    popa
+_isr_int0x22:
+    cli
+    inc word [int0x22_flag]    ; 割り込み発生フラグセット
+    sti
     iret
 
 ; ---------------------------------------------------------
-; INTP3 (Vector 23h) ハンドラ - 詳細不明
+; INT 0x23 (INTP3) ハンドラ - 未使用
 ; ---------------------------------------------------------
-align 2
-_isr_intp3:
-    pusha
-    push ds
-    push es
-
-    ; 1. セグメントをモニタ用に設定 (表示ルーチンを使うため)
-    mov  ax, cs
-    mov  ds, ax
-    mov  es, ax
-
-    ; 2. 発生フラグをセット
-    inc  word [intp3_flag]
-    
-    ; --- 画面表示 ---
-    mov  si, msg_intp3
-    call puts
-
-    ; EOI発行
-    mov  al, 20h
-    mov  dx, ICU_REG0
-    out  dx, al
-
-    pop  es
-    pop  ds
-    popa
+_isr_int0x23:
+    cli
+    inc word [int0x23_flag]    ; 割り込み発生フラグセット
+    sti
     iret
 
 ; ---------------------------------------------------------
-; INTP4 (Vector 24h) ハンドラ - 詳細不明
+; INT 0x24 (INTP4) ハンドラ - MPSCカスケード割り込み
 ; ---------------------------------------------------------
-align 2
-_isr_intp4:
-    pusha
-    push ds
-    push es
-
-    ; 1. セグメントをモニタ用に設定 (表示ルーチンを使うため)
-    mov  ax, cs
-    mov  ds, ax
-    mov  es, ax
-
-    ; 2. 発生フラグをセット
-    inc  word [intp4_flag]
-    
-    ; --- 画面表示 ---
-    ;mov  si, msg_intp4
-    ;call puts
-
-    ; EOI発行
-    mov  al, 20h
-    mov  dx, ICU_REG0
-    out  dx, al
-
-    pop  es
-    pop  ds
-    popa
+_isr_int0x24:
+    cli
+    inc word [int0x24_flag]    ; 割り込み発生フラグセット
+    sti
     iret
 
 ; ---------------------------------------------------------
-; INTP5 (Vector 25h) ハンドラ - 詳細不明
+; INT 0x25 (INTP5) ハンドラ - MPSCカスケード割り込み
 ; ---------------------------------------------------------
-align 2
-_isr_intp5:
-    pusha
-    push ds
-    push es
-
-    ; 1. セグメントをモニタ用に設定 (表示ルーチンを使うため)
-    mov  ax, cs
-    mov  ds, ax
-    mov  es, ax
-
-    ; 2. 発生フラグをセット
-    inc  word [intp5_flag]
-    
-    ; --- 画面表示 ---
-    mov  si, msg_intp5
-    call puts
-
-    ; EOI発行
-    mov  al, 20h
-    mov  dx, ICU_REG0
-    out  dx, al
-
-    pop  es
-    pop  ds
-    popa
+_isr_int0x25:
+    cli
+    inc word [int0x25_flag]    ; 割り込み発生フラグセット
+    sti
     iret
 
 ; ---------------------------------------------------------
-; INTP6 (Vector 26h) ハンドラ - 詳細不明
+; INT 0x26 (INTP6) ハンドラ - 未使用
 ; ---------------------------------------------------------
-align 2
-_isr_intp6:
-    pusha
-    push ds
-    push es
-
-    ; 1. セグメントをモニタ用に設定 (表示ルーチンを使うため)
-    mov  ax, cs
-    mov  ds, ax
-    mov  es, ax
-
-    ; 2. 発生フラグをセット
-    inc  word [intp6_flag]
-    
-    ; --- 画面表示 ---
-    mov  si, msg_intp6
-    call puts
-
-    ; EOI発行
-    mov  al, 20h
-    mov  dx, ICU_REG0
-    out  dx, al
-
-    pop  es
-    pop  ds
-    popa
+_isr_int0x26:
+    cli
+    inc word [int0x26_flag]    ; 割り込み発生フラグセット
+    sti
     iret
 
 ; ---------------------------------------------------------
-; INTP7 (Vector 27h) ハンドラ - 詳細不明
+; INT 0x27 (INTP7) ハンドラ - 未使用
 ; ---------------------------------------------------------
-align 2
-_isr_intp7:
-    pusha
-    push ds
-    push es
-
-    ; 1. セグメントをモニタ用に設定 (表示ルーチンを使うため)
-    mov  ax, cs
-    mov  ds, ax
-    mov  es, ax
-
-    ; 2. 発生フラグをセット
-    inc  word [intp7_flag]
-    
-    ; --- 画面表示 --- 大量にでるのでコメントアウト
-    ;mov  si, msg_intp7
-    ;call puts
-
-    ; EOI発行
-    mov  al, 20h
-    mov  dx, ICU_REG0
-    out  dx, al
-
-    pop  es
-    pop  ds
-    popa
+_isr_int0x27:
+    cli
+    inc word [int0x27_flag]    ; 割り込み発生フラグセット
+    sti
     iret
 
-; ---------------------------------------------------------
-; INT10h (Vector 10h) ハンドラ - 詳細不明
-; ---------------------------------------------------------
-align 2
-_isr_int10h:
-    pusha
-    push ds
-    push es
-
-    ; 1. セグメントをモニタ用に設定 (表示ルーチンを使うため)
-    mov  ax, cs
-    mov  ds, ax
-    mov  es, ax
-
-    ; 2. 発生フラグをセット
-    inc  word [int10h_flag]
+; --------------------------------------
+; Int 0x28
+; --------------------------------------
+_isr_int0x28:
+    cli	                        ;割り込み禁止
+    push ax
+    push bx
+    push dx
     
-    ; --- 画面表示 ---
-    mov  si, msg_int10h
-    call puts
+    inc word [int0x28_flag]     ;割り込み発生フラグセット
+
+    mov dx, MPSC1_A_CTRL	    ;MPSC #1 コマンドポート 0x00A2 を指定
+    mov al, 0x38
+    out dx, al	                ;ポートへ出力
+
+    pop dx
+    pop bx
+    pop ax
+    sti	                        ;割り込み許可
+    iret	                    ;割り込み復帰
+
+; --------------------------------------
+; INT 0x29
+; --------------------------------------
+_isr_int0x29:
+    cli	                        ;割り込み禁止
+    push ax
+    push bx
+    push dx
+
+    inc word [int0x29_flag]     ;割り込み発生フラグセット
+
+    mov dx, MPSC1_A_CTRL	    ;MPSC #1 コマンドポート 0x00A2 を指定
+    mov al, 0x38
+    out dx, al	                ;ポートへ出力
+
+    pop dx
+    pop bx
+    pop ax
+    sti	                        ;割り込み許可
+    iret	                    ;割り込み復帰
+
+; --------------------------------------
+; INT 0x2a
+; --------------------------------------
+_isr_int0x2a:
+    cli	                        ;割り込み禁止
+    push ax
+    push bx
+    push dx
+
+    inc word [int0x2a_flag]     ;割り込み発生フラグセット
+
+    mov dx, MPSC1_A_CTRL	    ;MPSC #1 コマンドポート 0x00A2 を指定
+    mov al, 0x38
+    out dx, al	                ;ポートへ出力
+
+    pop dx
+    pop bx
+    pop ax
+    sti	                        ;割り込み許可
+    iret	                    ;割り込み復帰
+
+; --------------------------------------
+; INT 0x2b
+; --------------------------------------
+_isr_int0x2b:
+    cli	                        ;割り込み禁止
+    push ax
+    push bx
+    push dx
+
+    inc word [int0x2b_flag]     ;割り込み発生フラグセット
+
+    mov dx, MPSC1_A_CTRL	    ;MPSC #1 コマンドポート 0x00A2 を指定
+    mov al, 0x38
+    out dx, al	                ;ポートへ出力
+
+    pop dx
+    pop bx
+    pop ax
+    sti	                        ;割り込み許可
+    iret	                    ;割り込み復帰
+
+; --------------------------------------
+; INT 0x2c
+; --------------------------------------
+_isr_int0x2c:
+    cli	                        ;割り込み禁止
+    push ax
+    push bx
+    push dx
+
+    inc word [int0x2c_flag]     ;割り込み発生フラグセット
+
+    mov dx, MPSC1_A_CTRL	    ;MPSC #1 コマンドポート 0x00A2 を指定
+    mov al, 0x38
+    out dx, al	                ;ポートへ出力
+
+    pop dx
+    pop bx
+    pop ax
+    sti	                        ;割り込み許可
+    iret	                    ;割り込み復帰
+
+; --------------------------------------
+; INT 0x2d
+; --------------------------------------
+_isr_int0x2d:
+    cli	                        ;割り込み禁止
+    push ax
+    push bx
+    push dx
+
+    inc word [int0x2d_flag]     ;割り込み発生フラグセット
     
-    ; EOI発行
-    mov  al, 20h
-    mov  dx, ICU_REG0
-    out  dx, al
+    mov dx, MPSC1_A_CTRL	    ;MPSC #1 コマンドポート 0x00A2 を指定
+    mov al, 0x38
+    out dx, al	                ;ポートへ出力
 
-    pop  es
-    pop  ds
-    popa
-    iret
+    pop dx
+    pop bx
+    pop ax
+    sti	                        ;割り込み許可
+    iret	                    ;割り込み復帰
 
-; ---------------------------------------------------------
-; INT11h (Vector 11h) ハンドラ - 詳細不明
-; ---------------------------------------------------------
-align 2
-_isr_int11h:
-    pusha
-    push ds
-    push es
+; --------------------------------------
+; INT 0x2e MPSC#1 Ch.A 受信割り込みハンドラ
+; --------------------------------------
+_isr_int0x2e:
+    cli	                        ;割り込み禁止
+    push ax
+    push bx
+    push dx
 
-    ; 1. セグメントをモニタ用に設定 (表示ルーチンを使うため)
-    mov  ax, cs
-    mov  ds, ax
-    mov  es, ax
+    inc word [int0x2e_flag]     ; 割り込み発生フラグセット
 
-    ; 2. 発生フラグをセット
-    inc  word [int11h_flag]
+    ; uartデータレジスタから読み込み
+    mov dx, MPSC1_A_DATA
+    in  al, dx                  ; 1バイト受信
+
+    ; リングバッファへ格納
+    mov bx, [head_ptr]          ; バッファポインタをbxに設定
+    mov [rx_buffer + bx], al    ; 受信データを格納
     
-    ; --- 画面表示 ---
-    mov  si, msg_int11h
-    call puts
+    inc bx                      ; ポインタを加算
+    cmp bx, RX_BUF_SIZE         ; バッファオーバーフローチェック
+    jne .skip_wrap
+    xor bx, bx                  ; バッファポインタをリセット
+.skip_wrap:
+    mov [head_ptr], bx          ; バッファポインタを保存
     
-    ; EOI発行
-    mov  al, 20h
-    mov  dx, ICU_REG0
-    out  dx, al
+    ; MPSC EOI / Error Reset
+    mov dx, MPSC1_A_CTRL	    ; MPSC #1 コマンドポート 0x00A2 を指定
+    mov al, 0x38
+    out dx, al	                ; ポートへ出力
 
-    pop  es
-    pop  ds
-    popa
-    iret
-; ---------------------------------------------------------
-; INT12h (Vector 12h) ハンドラ - 詳細不明
-; ---------------------------------------------------------
-align 2
-_isr_int12h:
-    pusha
-    push ds
-    push es
+    pop dx
+    pop bx
+    pop ax
+    sti	                        ;割り込み許可
+    iret	                    ;割り込み復帰
 
-    ; 1. セグメントをモニタ用に設定 (表示ルーチンを使うため)
-    mov  ax, cs
-    mov  ds, ax
-    mov  es, ax
+; --------------------------------------
+; INT 0x2f
+; --------------------------------------
+_isr_int0x2f:
+    cli	                        ;割り込み禁止
+    push ax
+    push bx
+    push dx
 
-    ; 2. 発生フラグをセット
-    inc  word [int12h_flag]
+    inc word [int0x2f_flag]     ;割り込み発生フラグセット
     
-    ; --- 画面表示 ---
-    mov  si, msg_int12h
-    call puts
+    mov dx, MPSC1_A_CTRL	    ; MPSC #1 コマンドポート 0x00A2 を指定
+    mov al, 0x38
+    out dx, al	                ; ポートへ出力
+
+    pop dx
+    pop bx
+    pop ax
+    sti	                        ;割り込み許可
+    iret	                    ;割り込み復帰
+
+; --------------------------------------
+; INT 0x30
+; --------------------------------------
+_isr_int0x30:
+    cli	                        ;割り込み禁止
+    push ax
+    push bx
+    push dx
+
+    inc word [int0x30_flag]     ;割り込み発生フラグセット
+
+    mov dx, MPSC2_A_CTRL	    ;MPSC #2 コマンドポート 0x00AAを指定
+    mov al, 0x38
+    out dx, al	                ;ポートへ出力
+
+    pop dx
+    pop bx
+    pop ax
+    sti	                        ;割り込み許可
+    iret	                    ;割り込み復帰
+
+; --------------------------------------
+; INT 0x31
+; --------------------------------------
+_isr_int0x31:
+    cli	                        ;割り込み禁止
+    push ax
+    push bx
+    push dx
+
+    inc word [int0x31_flag]     ;割り込み発生フラグセット
+
+    mov dx, MPSC2_A_CTRL	    ;MPSC #2 コマンドポート 0x00AAを指定
+    mov al, 0x38
+    out dx, al	                ;ポートへ出力
+
+    pop dx
+    pop bx
+    pop ax
+    sti	                        ;割り込み許可
+    iret	                    ;割り込み復帰
+
+; --------------------------------------
+; INT 0x32
+; --------------------------------------
+_isr_int0x32:
+    cli	                        ;割り込み禁止
+    push ax
+    push bx
+    push dx
+
+    inc word [int0x32_flag]     ;割り込み発生フラグセット
+
+    mov dx, MPSC2_A_CTRL	    ;MPSC #2 コマンドポート 0x00AAを指定
+    mov al, 0x38
+    out dx, al	                ;ポートへ出力
+
+    pop dx
+    pop bx
+    pop ax
+    sti	                        ;割り込み許可
+    iret	                    ;割り込み復帰
+
+; --------------------------------------
+; INT 0x33
+; --------------------------------------
+_isr_int0x33:
+    cli	                        ;割り込み禁止
+    push ax
+    push bx
+    push dx
+
+    inc word [int0x33_flag]     ;割り込み発生フラグセット
+
+    mov dx, MPSC2_A_CTRL	    ;MPSC #2 コマンドポート 0x00AAを指定
+    mov al, 0x38
+    out dx, al	                ;ポートへ出力
+
+    pop dx
+    pop bx
+    pop ax
+    sti	                        ;割り込み許可
+    iret	                    ;割り込み復帰
+
+; --------------------------------------
+; INT 0x34
+; --------------------------------------
+_isr_int0x34:
+    cli	                        ;割り込み禁止
+    push ax
+    push bx
+    push dx
+
+    inc word [int0x34_flag]     ;割り込み発生フラグセット
+
+    mov dx, MPSC2_A_CTRL	    ;MPSC #2 コマンドポート 0x00AAを指定
+    mov al, 0x38
+    out dx, al	                ;ポートへ出力
+
+    pop dx
+    pop bx
+    pop ax
+    sti	                        ;割り込み許可
+    iret	                    ;割り込み復帰
+
+; --------------------------------------
+; INT 0x35
+; --------------------------------------
+_isr_int0x35:
+    cli	                        ;割り込み禁止
+    push ax
+    push bx
+    push dx
+
+    inc word [int0x35_flag]     ;割り込み発生フラグセット
     
-    ; EOI発行
-    mov  al, 20h
-    mov  dx, ICU_REG0
-    out  dx, al
+    mov dx, MPSC2_A_CTRL	    ;MPSC #2 コマンドポート 0x00AAを指定
+    mov al, 0x38
+    out dx, al	                ;ポートへ出力
 
-    pop  es
-    pop  ds
-    popa
-    iret
-; ---------------------------------------------------------
-; INT13h (Vector 13h) ハンドラ - 詳細不明
-; ---------------------------------------------------------
-align 2
-_isr_int13h:
-    pusha
-    push ds
-    push es
+    pop dx
+    pop bx
+    pop ax
+    sti	                        ;割り込み許可
+    iret	                    ;割り込み復帰
 
-    ; 1. セグメントをモニタ用に設定 (表示ルーチンを使うため)
-    mov  ax, cs
-    mov  ds, ax
-    mov  es, ax
+; --------------------------------------
+; INT 0x36
+; --------------------------------------
+_isr_int0x36:
+    cli	                        ;割り込み禁止
+    push ax
+    push bx
+    push dx
 
-    ; 2. 発生フラグをセット
-    inc  word [int13h_flag]
+    inc word [int0x36_flag]     ;割り込み発生フラグセット
     
-    ; --- 画面表示 ---
-    mov  si, msg_int13h
-    call puts
+    mov dx, MPSC2_A_CTRL	    ;MPSC #2 コマンドポート 0x00AAを指定
+    mov al, 0x38
+    out dx, al	                ;ポートへ出力
+
+    pop dx
+    pop bx
+    pop ax
+    sti	                        ;割り込み許可
+    iret	                    ;割り込み復帰
+
+; --------------------------------------
+; INT 0x37
+; --------------------------------------
+_isr_int0x37:
+    cli	                        ;割り込み禁止
+    push ax
+    push bx
+    push dx
+
+    inc word [int0x37_flag]     ;割り込み発生フラグセット
     
-    ; EOI発行
-    mov  al, 20h
-    mov  dx, ICU_REG0
-    out  dx, al
+    mov dx, MPSC2_A_CTRL	    ;MPSC #2 コマンドポート 0x00AAを指定
+    mov al, 0x38
+    out dx, al	                ;ポートへ出力
 
-    pop  es
-    pop  ds
-    popa
-    iret
-; ---------------------------------------------------------
-; INT14h (Vector 14h) ハンドラ - 詳細不明
-; ---------------------------------------------------------
-align 2
-_isr_int14h:
-    pusha
-    push ds
-    push es
-
-    ; 1. セグメントをモニタ用に設定 (表示ルーチンを使うため)
-    mov  ax, cs
-    mov  ds, ax
-    mov  es, ax
-    
-    ; 2. 発生フラグをセット
-    inc  word [int14h_flag]
-    
-    ; --- 画面表示 ---
-    mov  si, msg_int14h
-    call puts
-    
-    ; EOI発行
-    mov  al, 20h
-    mov  dx, ICU_REG0
-    out  dx, al
-
-    pop  es
-    pop  ds
-    popa
-    iret
-; ---------------------------------------------------------
-; INT15h (Vector 15h) ハンドラ - 詳細不明
-; ---------------------------------------------------------
-align 2
-_isr_int15h:
-    pusha
-    push ds
-    push es
-
-    ; 1. セグメントをモニタ用に設定 (表示ルーチンを使うため)
-    mov  ax, cs
-    mov  ds, ax
-    mov  es, ax
-
-    ; 2. 発生フラグをセット
-    inc  word [int15h_flag]
-    
-    ; --- 画面表示 ---
-    mov  si, msg_int15h
-    call puts
-    
-    ; EOI発行
-    mov  al, 20h
-    mov  dx, ICU_REG0
-    out  dx, al
-
-    pop  es
-    pop  ds
-    popa
-    iret
-; ---------------------------------------------------------
-; INT16h (Vector 16h) ハンドラ - 詳細不明
-; ---------------------------------------------------------
-align 2
-_isr_int16h:
-    pusha
-    push ds
-    push es
-
-    ; 1. セグメントをモニタ用に設定 (表示ルーチンを使うため)
-    mov  ax, cs
-    mov  ds, ax
-    mov  es, ax
-
-    ; 2. 発生フラグをセット
-    inc  word [int16h_flag]
-    
-    ; --- 画面表示 ---
-    mov  si, msg_int16h
-    call puts
-    
-    ; EOI発行
-    mov  al, 20h
-    mov  dx, ICU_REG0
-    out  dx, al
-
-    pop  es
-    pop  ds
-    popa
-    iret
-; ---------------------------------------------------------
-; INT17h (Vector 17h) ハンドラ - 詳細不明
-; ---------------------------------------------------------
-align 2
-_isr_int17h:
-    pusha
-    push ds
-    push es
-
-    ; 1. セグメントをモニタ用に設定 (表示ルーチンを使うため)
-    mov  ax, cs
-    mov  ds, ax
-    mov  es, ax
-
-    ; 2. 発生フラグをセット
-    inc  word [int17h_flag]
-    
-    ; --- 画面表示 ---
-    mov  si, msg_int17h
-    call puts
-    
-    ; EOI発行
-    mov  al, 20h
-    mov  dx, ICU_REG0
-    out  dx, al
-
-    pop  es
-    pop  ds
-    popa
-    iret
+    pop dx
+    pop bx
+    pop ax
+    sti	                        ;割り込み許可
+    iret	                    ;割り込み復帰
 
 ; --------------------------------------------------
-;  V53 システムレジスタ初期化
+;  V53 CPUシステムレジスタ初期化
 ; --------------------------------------------------
 v53_sysreg_init:
     mov si, TABLE_V53_REG
@@ -1358,6 +1427,30 @@ v53_sysreg_init:
     jmp .next
 .done:
     ret
+
+; V53システムレジスタ設定テーブル
+ALIGN 2
+TABLE_V53_REG:
+    db 0xFE, 0xFF, 0x00     ; FFFE (SCTL) = 0x00 16bit I/O boundary
+    db 0xFD, 0xFF, 0x06     ; FFFD (OPSEL)= 0x06 Enable ICU,TCU  Disable DMAU,SCU
+    db 0xFC, 0xFF, 0x00     ; FFFC (OPHA) = 0x00
+    db 0xFB, 0xFF, 0xE0     ; FFFB (DULA) = 0xE0 DCU:0x00E0
+    db 0xFA, 0xFF, 0xC0     ; FFFA (IULA) = 0xC0 ICU:0x00C0
+    db 0xF9, 0xFF, 0xD0     ; FFF9 (TULA) = 0xD0 TCU:0x00D0
+    db 0xF8, 0xFF, 0xF0     ; FFF8 (SULA) = 0xF0 SCU:0x00F0
+    db 0xEA, 0xFF, 0x00     ; FFEA (WMB0) = 0x00
+    db 0xEB, 0xFF, 0x00     ; FFEB (WCY1) = 0x00
+    db 0xEC, 0xFF, 0x00     ; FFEC (WCY0) = 0x00
+    db 0xF3, 0xFF, 0x73     ; FFF3 (WMB1) = 0x73
+    db 0xED, 0xFF, 0x00     ; FFED (WAC)  = 0x00
+    db 0xF4, 0xFF, 0x10     ; FFF4 (WCY2) = 0x10
+    db 0xF5, 0xFF, 0x22     ; FFF5 (WCY3) = 0x22
+    db 0xF6, 0xFF, 0x10     ; FFF6 (WCY4) = 0x10
+    db 0xF2, 0xFF, 0x00     ; FFF2 (RFC)  = 0x00
+    db 0xE9, 0xFF, 0x00     ; FFE9 (BRC)  = 0x00
+    db 0xF0, 0xFF, 0x02     ; FFF0 (TCKS) = 0x02
+    db 0xF1, 0xFF, 0x00     ; FFF1 (SBCR) = 0x00
+    db 0xFF, 0xFF, 0xFF     ; 終端マーカー
 
 ; --------------------------------------------------
 ; TCU (タイマーユニット) 初期化
@@ -1380,6 +1473,27 @@ v53_tcu_init:
 .done:
     ret
 
+; TCU タイマー設定テーブル
+ALIGN 2
+TABLE_TCU_REG:
+    ; Port1, Val1, Port2, Val2(16)
+    dw TM_CTL  ; T0設定
+    db 0x36
+    dw TM0_CNT
+    dw 0x4E20
+
+    dw TM_CTL  ; T0最大値A
+    db 0x70
+    dw TM1_CNT
+    dw 0x0D05
+
+    dw TM_CTL  ; T0最大値B
+    db 0xB0
+    dw TM2_CNT
+    dw 0x0D05
+        
+    dw 0x0FFFF ; 終端マーカー
+
 ; ---------------------------------------------------
 ; 物理IOの初期化
 ; ---------------------------------------------------
@@ -1393,84 +1507,131 @@ dve554_io_init:
     out dx, al
     ret
 
-; ---------------------------------------------------
-; MPSC1/2 初期化シーケンス
-; ---------------------------------------------------
+; ---------------------------------------
+; V53 ICUの初期化
+; ---------------------------------------
+v53_icu_init:
+    MOV SI, TABLE_V53_ICU	;I/O設定テーブルの先頭を指定
+.loop:
+    MOV DX, CS:[SI]	        ;テーブルからポート番号(Word)をロード
+    CMP DX, 0x0FFFF	        ;終端マーカー（0xFFFF）かチェック
+    JZ .done	            ;終端なら終了（RETへ）
+    mov al, cs:[si+02]	    ;設定値(byte)をロード
+    out dx, al	            ;ポートへ出力
+    add si, 3	            ;次のエントリ（3バイト後）へ
+    jmp .loop	            ;ループ
+.done:
+    ret
+
+ALIGN 2
+TABLE_V53_ICU:
+    dw ICU_REG0
+    db 0x11    ; IIW1: 00010001b (Edge Trigger, カスケード拡張モード, IIW4有効)
+    dw ICU_REG1  
+    db 0x20    ; IIW2: 00100000b (Vector Offset = 0x20 (INT 32))
+    dw ICU_REG1
+    db 0x30    ; IIW3: 00110000b (INTP4, INTP5はスレーブ接続)
+    dw ICU_REG1
+    db 0x03    ; IIW4: 00000011b (通常ネストモード、通常FIモード、8086モード)
+    dw ICU_REG1
+    db 0xCE    ; IMKW: 11001110b (INTP4, INTP5, INTP0以外はマスクする)     
+    dw 0x0FFFF
+
+; =============================================================
+; uPD72001 (MPSC) 初期化シーケンス
+; CPU: 8086
+; 対象: MPSC #1 / MPSC #2  チャンネルAのみを使用
+;
+; 設定内容:
+;   非同期モード, 9600bps (BRGカウント=0x001E, CLK=x16),
+;   8データビット, ストップビット1, パリティなし
+;   全受信文字割り込み有効
+;   割り込みベクタベース = MPSC #1 0x28, MPSC #2 0x29
+; =============================================================
+ 
+; =============================================================
+; mpsc_init  - MPSCメイン初期化ルーチン
+; 入力: なし / 破壊: AX, BX, CX, DX
+; =============================================================
 mpsc_init:
-; --- [Phase 1: Hardware Reset] ---
-;   MPSC #1のチャネルA/Bに対して、リセットシーケンスを実行
+    ; =========================================================
+    ; Phase 1: ポインタリセット → チャンネルリセット
+    ; CR0 ポインタを確実に0にしてからChannel Resetを発行する
+    ; =========================================================
+ 
+    ; --- MPSC#1 チャンネルA ---
     mov dx, MPSC1_A_CTRL
-    mov al, 0
-    out dx, al          ; Pointer Reset 1
-    out dx, al          ; Pointer Reset 2 
-
-    mov dx, MPSC1_B_CTRL
-    mov al, 0
-    out dx, al          ; Pointer Reset 1 
-    out dx, al          ; Pointer Reset 2 
-
-    ; Channel Reset (CR0: 0x18)
-    mov dx, MPSC1_A_CTRL
-    mov al, 0x18        ; Channel Reset command 
-    out dx, al          ; Direct Write to WR0
-
-    mov dx, MPSC1_B_CTRL
+    mov al, 0x00
+    out dx, al              ; CR0選択（ポインタリセット）
+    out dx, al              ; CR0選択（ポインタリセット）
+    mov al, 0x18             ; Channel Reset コマンド
+    out dx, al
+ 
+    ; --- MPSC#2 チャンネルA ---
+    mov dx, MPSC2_A_CTRL
+    mov al, 0x00
+    out dx, al              ; CR0選択（ポインタリセット）
+    out dx, al              ; CR0選択（ポインタリセット）
     mov al, 0x18
     out dx, al
-    
-    ; MPSC #2のチャネルA/Bに対しても同様のリセットシーケンスを実行
-    mov dx, MPSC2_A_CTRL
-    mov al, 0
-    out dx, al          ; Pointer Reset 1
-    out dx, al          ; Pointer Reset 2 
-
-    mov dx, MPSC2_B_CTRL
-    mov al, 0
-    out dx, al          ; Pointer Reset 1 
-    out dx, al          ; Pointer Reset 2 
-
-    ; Channel Reset (CR0: 0x18)
-    mov dx, MPSC2_A_CTRL
-    mov al, 0x18        ; Channel Reset command 
-    out dx, al          ; Direct Write to WR0
-
-    mov dx, MPSC2_B_CTRL
-    mov al, 0x18
-    out dx, al
-
-    ; リセット後の安定待ち
+  
+    ; リセット後安定待ち（約100ループ）
     mov cx, 100
-.wait_res:
+.wait_reset:
     nop
     nop
     nop
-    loop .wait_res
+    loop .wait_reset
 
-    ; CR4: 送受信共通の動作設定
-    mov al, 4
-    mov bl, 0x44        ; x16, Async, ストップビット 1bit，パリティなし
-    call mpsc_write_both
-
-    ; CR2: システム全体の構成（割り込み/DMAモードや優先順位）を設定
-    ; CR2B
-    mov dx, MPSC1_B_CTRL       ; MPSC #1 Ch.B Control Port
-    mov al, 02h                ; CR2Bを選択
-    out dx, al
-    mov al, 10h         ; ベクタベースを 10h に設定
-    out dx, al
-
-    ; CR1: バスインターフェース、割り込みおよびDMAの設定
+    ; =========================================================
+    ; Phase 2: CR1 - 割り込み/DMA設定
+    ; CR1 = 0x10: D4-D3=10(全受信文字で割り込み),
+    ;            D1=0(送信割り込み禁止), D0=0(外部割り込み禁止)
+    ; =========================================================
+    mov dx, MPSC1_A_CTRL
     mov al, 1
-    ;mov bl, 0x00       ; すべての割り込みとDMAを無効化
-    mov bl, 12h         ; D4-D3=10: 全受信文字で割り込み
-                        ; D1=1: 送信割り込み有効
-                        ; D0=0: 外部要因(E/S)割り込み無効
+    out dx, al              ; CR1
+    mov al, 0x10             ; 受信割り込み可能
+    out dx, al
+    mov dx, MPSC2_A_CTRL
+    mov al, 1
+    out dx, al              ; CR1
+    mov al, 0x10             ; 受信割り込み可能
+    out dx, al
+
+    ; =========================================================
+    ; Phase 3: CR2A - 割り込み/DMA設定
+    ; CR2 = 0x30 
+    ;  D5=1: ベクタモード
+    ;  D4-D3=10: 86応答モード
+    ;  D1-D0=00: 両チャンネルとも割り込み
+    ;  D2=0: A/BチャネルのPriority Select
+    ; =========================================================
+    mov al, 2
+    mov bl, 0x0e0    ; 0000 0000b
     call mpsc_write_both
-    
-    ; CR12: ボーレートジェネレータ（BRG）の割り込みとレジスタ書き込み設定 
-    ; MPSC #1のチャネルA/Bに対して、BRGレジスタセットモードを有効化し、ボーレートの値を設定
+
+    ; =========================================================
+    ; Phase 4: CR4 - 送受信共通フォーマット設定
+    ; 非同期モード, x16クロック, ストップビット1, パリティなし
+    ; CR4 = 0x44: D7-D6=00(パリティなし), D5-D4=01(1stop),
+    ;             D3-D2=00(Async), D1-D0=01(x16)
+    ; ※ CR4はCR3/CR5より先に設定すること
+    ; =========================================================
+    mov al, 4
+    mov bl, 0x44
+    call mpsc_write_both  ; Aチャンネル両方に書き込み
+ 
+    ; =========================================================
+    ; Phase 5: CR12/CR13 - BRGタイムコンスタント設定
+    ; ボーレート9600bps, CLKソース, x16分周の場合:
+    ;   カウント値 = 0x001E (30)
+    ; CR12: タイムコンスタント下位8ビットと上位8ビットを送受信別に書き込む
+    ; =========================================================
+ 
+    ; --- MPSC#1 チャンネルA ---
     mov dx, MPSC1_A_CTRL
-    mov al, 12          ; Select CR12
+    mov al, 12          ; CR12選択
     out dx, al
     mov al, 1           ; 受信BRGレジスタセットモード有効 (D0=1)
     out dx, al
@@ -1478,28 +1639,7 @@ mpsc_init:
     out dx, al
     mov al, 0x00        ; 上位バイトの値
     out dx, al
-    
-    mov dx, MPSC1_B_CTRL
-    mov al, 12          ; Select CR12
-    out dx, al
-    mov al, 2           ; 送信BRGレジスタセットモード有効
-    out dx, al
-    mov al, 0x1e        ; 下位バイトの値
-    out dx, al
-    mov al, 0x00        ; 上位バイトの値
-    out dx, al
-    
-    mov dx, MPSC1_A_CTRL
-    mov al, 12          ; Select CR12
-    out dx, al
-    mov al, 1           ; 受信BRGレジスタセットモード有効 (D0=1)
-    out dx, al
-    mov al, 0x1e        ; 下位バイトの値
-    out dx, al
-    mov al, 0x00        ; 上位バイトの値
-    out dx, al
-    
-    mov dx, MPSC1_B_CTRL
+ 
     mov al, 12          ; Select CR12
     out dx, al
     mov al, 2           ; 送信BRGレジスタセットモード有効
@@ -1509,148 +1649,188 @@ mpsc_init:
     mov al, 0x00        ; 上位バイトの値
     out dx, al
 
-    ; MPSC #2のチャネルA/Bに対して、BRGレジスタセットモードを有効化し、ボーレートの値を設定
+    ; --- MPSC#2 チャンネルA ---
     mov dx, MPSC2_A_CTRL
-    mov al, 12          ; Select CR12
+    mov al, 12          ; CR12選択
     out dx, al
     mov al, 1           ; 受信BRGレジスタセットモード有効 (D0=1)
-    out dx, al
-    mov al, 0x1e        ; 下位バイトの値
-    out dx, al
-    mov al, 0x00        ; 上位バイトの値
-    out dx, al
-    
-    mov dx, MPSC2_B_CTRL
-    mov al, 12          ; Select CR12
-    out dx, al
-    mov al, 2           ; 送信BRGレジスタセットモード有効
-    out dx, al
-    mov al, 0x1e        ; 下位バイトの値
-    out dx, al
-    mov al, 0x00        ; 上位バイトの値
-    out dx, al
-    
-    mov dx, MPSC2_A_CTRL
-    mov al, 12          ; Select CR12
-    out dx, al
-    mov al, 1           ; 受信BRGレジスタセットモード有効 (D0=1)
-    out dx, al
-    mov al, 0x1e        ; 下位バイトの値
-    out dx, al
-    mov al, 0x00        ; 上位バイトの値
-    out dx, al
-    
-    mov dx, MPSC2_B_CTRL
-    mov al, 12          ; Select CR12
-    out dx, al
-    mov al, 2           ; 送信BRGレジスタセットモード有効
     out dx, al
     mov al, 0x1e        ; 下位バイトの値
     out dx, al
     mov al, 0x00        ; 上位バイトの値
     out dx, al
 
-    ; CR15: クロックソースとピン機能の選択
+    mov al, 12          ; Select CR12
+    out dx, al
+    mov al, 2           ; 送信BRGレジスタセットモード有効
+    out dx, al
+    mov al, 0x1e        ; 下位バイトの値
+    out dx, al
+    mov al, 0x00        ; 上位バイトの値
+    out dx, al
+ 
+    ; =========================================================
+    ; Phase 6: CR15 - クロックソースとピン機能選択
+    ; CR15 = 0x56: DPLL入力はBRG, RTSCとTTLCはBRG出力
+    ; =========================================================
     mov al, 15
-    mov bl, 0x56        ; ボーレートジェネレータ使用
+    mov bl, 0x56
     call mpsc_write_both
-
-    ; CR14: BRGの動作許可とソース設定
+ 
+    ; =========================================================
+    ; Phase 7: CR14 - BRG動作許可
+    ; CR14 = 0x07: BRGソース=システムCLK, 送受信BRGカウント有効
+    ; D2=1(BR CLK=SYS CLK), D1=1(送信BRG有効), D0=1(受信BRG有効)
+    ; =========================================================
     mov al, 14
-    mov bl, 0x07        ; BRGを動作させるソースクロックとして、システムクロック（CLK）を選択,送受信BRGカウント有効
+    mov bl, 0x07
     call mpsc_write_both
 
-    ; CR10: データエンコーディングなどの設定
-    mov al, 10
-    mov bl, 0x00        ; データフォーマットとしてNRZ方式を選択
+    ; =========================================================
+    ; Phase 8: CR11 - 外部ステータス割り込み要因設定
+    ; CR11 = 0h : すべての拡張E/S割り込み要因を完全に禁止する
+    ; =========================================================
+    mov al, 11
+    mov bl, 0x00
     call mpsc_write_both
 
-    ; CR3: 受信動作の有効化
+    ; =========================================================
+    ; Phase 9: CR3 - 受信設定・イネーブル
+    ; CR3 = 0xC1: D7-D6=11(8ビット受信), D0=1(受信イネーブル)
+    ; =========================================================
     mov al, 3
-    mov bl, 0xC1        ; データ 8bit，受信イネーブル
+    mov bl, 0xC1
     call mpsc_write_both
-    
-    ; CR5: 送信動作の有効化とモデム制御ピンのアサート
+ 
+    ; =========================================================
+    ; Phase 10: CR5 - 送信設定・イネーブル
+    ; CR5 = 0xEA: D7=1(DTRアサート), D6-D5=11(8ビット送信),
+    ;            D3=1(送信イネーブル), D1=1(RTSアサート)
+    ; DTR/RTSを初期からアサートしない場合は 0x68 を使用:
+    ;   CR5 = 0x68: D6-D5=11(8ビット), D3=1(TX EN), DTR/RTS=0
+    ; =========================================================
     mov al, 5
-    mov bl, 0xEA        ; データ 8bit，送信イネーブル
+    mov bl, 0xEA
     call mpsc_write_both
-    
-    ret
 
-; --- Helper: Write to both MPSC #1, MPSC #2 ---
-; Input: AL = Register Index, BL = Value
-mpsc_write_both:
-    ; MPSC #1 A-CHANNEL
-    mov dx, MPSC1_A_CTRL
-    out dx, al          ; Write Index
-    xchg al, bl
-    out dx, al          ; Write Data
-    xchg al, bl
-    
-    ; MPSC #1 B-CHANNEL
+    ; =========================================================
+    ; Phase 11: CR0  - 内部のCRC計算回路を初期化するコマンドを発行（ASYNCでは不要）
+    ; =========================================================
+    ;mov dx, MPSC1_A_CTRL
+    ;mov al, 0x80       ;送信CRC計算回路の初期化 (Initialize Tx CRC Calculator)
+    ;out dx, al    
+    ;mov al, 0x40       ;受信CRC計算回路の初期化 (Initialize Rx CRC Calculator)
+    ;out dx, al
+ 
+    ;mov dx, MPSC2_A_CTRL
+    ;mov al, 0x80
+    ;out dx, al
+    ;mov al, 0x40
+    ;out dx, al
+
+    ; =========================================================
+    ; Phase 12: チャンネルＢの設定
+    ; =========================================================
     mov dx, MPSC1_B_CTRL
-    out dx, al          ; Write Index
-    xchg al, bl
-    out dx, al          ; Write Data
-    xchg al, bl
+    mov al, 0x00            ; ポインタリセット
+    out dx, al
+    out dx, al
 
-    ; MPSC #2 A-CHANNEL
-    mov dx, MPSC2_A_CTRL
-    out dx, al          ; Write Index
-    xchg al, bl
-    out dx, al          ; Write Data
-    xchg al, bl
-    
-    ; MPSC #2 B-CHANNEL
     mov dx, MPSC2_B_CTRL
-    out dx, al          ; Write Index
-    xchg al, bl
-    out dx, al          ; Write Data
-    xchg al, bl
+    mov al, 0x00            ; ポインタリセット
+    out dx, al
+    out dx, al
+        
+    mov al, 0x18            ; Channel Reset コマンド
+    mov dx, MPSC1_B_CTRL
+    out dx, al
+    mov dx, MPSC2_B_CTRL
+    out dx, al
 
+    mov cx, 100
+.wait_loop:
+    nop
+    nop
+    nop
+    loop .wait_loop
+
+    ; =========================================================
+    ; Phase 13: CR2B - 割り込みベクタ設定（チャンネルBで設定必要）
+    ; ベクタベース = MPSC #1 0x28, MPSC #2 0x30
+    ; =========================================================
+    mov al, 2             ; CR2Bの設定
+    mov dx, MPSC1_B_CTRL
+    out dx, al
+    mov dx, MPSC2_B_CTRL
+    out dx, al
+        
+    mov al, 0x28             ; MPSC#1のベクタ設定
+    mov dx, MPSC1_B_CTRL
+    out dx, al
+        
+    mov al, 0x30             ; MPSC#2のベクタ設定
+    mov dx, MPSC2_B_CTRL
+    out dx, al
+
+    ; =========================================================
+    ; Phase 14: CR1B - 割り込み/DMA設定
+    ; CR1B = 0x00: D4-D3=0(受信割り込み完全禁止)
+    ;             D2=0(固定ベクタ)
+    ;             D1=0(送信割り込み禁止), D0=0(外部割り込み禁止)
+    ; =========================================================
+    mov al, 1             ; CR1Bの設定
+    mov dx, MPSC1_B_CTRL
+    out dx, al
+    mov dx, MPSC2_B_CTRL
+    out dx, al
+   
+    mov al, 0x00             ; ベクタ修飾無効、Bチャネル全割り込み禁止
+    mov dx, MPSC1_B_CTRL
+    out dx, al
+    mov dx, MPSC2_B_CTRL
+    out dx, al
+ 
+    ; =========================================================
+    ; Phase 15: CR11B - 外部ステータス割り込み要因設定
+    ; CR11 = 0h : すべての拡張E/S割り込み要因を完全に禁止する
+    ; =========================================================
+    mov al, 11              ; CR11Bの設定
+    mov dx, MPSC1_B_CTRL
+    out dx, al
+    mov dx, MPSC2_B_CTRL
+    out dx, al
+
+    mov al, 0x00             ; Bチャネルの外部ステータス割り込み禁止
+    mov dx, MPSC1_B_CTRL
+    out dx, al
+    mov dx, MPSC2_B_CTRL
+    out dx, al
+    
     ret
-
-; --------------------------------------------------
-; V53システムレジスタ設定テーブル
-; --------------------------------------------------
-ALIGN 2
-TABLE_V53_REG:
-    db 0xFE, 0xFF, 0x00     ; FFFE (SCTL) = 00h 16bit I/O boundary
-    db 0xFD, 0xFF, 0x06     ; FFFD (OPSEL)= 06h Enable ICU,TCU  Disable DMAU,SCU
-    db 0xFC, 0xFF, 0x00     ; FFFC (OPHA) = 00h
-    db 0xFB, 0xFF, 0xE0     ; FFFB (DULA) = E0h DCU:00E0h
-    db 0xFA, 0xFF, 0xC0     ; FFFA (IULA) = C0h ICU:00C0h
-    db 0xF9, 0xFF, 0xD0     ; FFF9 (TULA) = D0h TCU:00D0h
-    db 0xF8, 0xFF, 0xF0     ; FFF8 (SULA) = F0h SCU:00F0h
-    db 0xEA, 0xFF, 0x00     ; FFEA (WMB0) = 00h
-    db 0xEB, 0xFF, 0x00     ; FFEB (WCY1) = 00h
-    db 0xEC, 0xFF, 0x00     ; FFEC (WCY0) = 00h
-    db 0xF3, 0xFF, 0x73     ; FFF3 (WMB1) = 73h
-    db 0xED, 0xFF, 0x00     ; FFED (WAC)  = 00h
-    db 0xF4, 0xFF, 0x10     ; FFF4 (WCY2) = 10h
-    db 0xF5, 0xFF, 0x22     ; FFF5 (WCY3) = 22h
-    db 0xF6, 0xFF, 0x10     ; FFF6 (WCY4) = 10h
-    db 0xF2, 0xFF, 0x00     ; FFF2 (RFC)  = 00h
-    db 0xE9, 0xFF, 0x00     ; FFE9 (BRC)  = 00h
-    db 0xF0, 0xFF, 0x02     ; FFF0 (TCKS) = 02h
-    db 0xF1, 0xFF, 0x00     ; FFF1 (SBCR) = 00h
-    db 0xFF, 0xFF, 0xFF     ; 終端マーカー
-
-; --------------------------------------------------
-; TCU タイマー設定テーブル
-; --------------------------------------------------
-ALIGN 2
-TABLE_TCU_REG:
-    ; Port1, Val1, Port2, Val2(16)
-    db 0xD6, 0x00, 0x36, 0xD0, 0x00, 0x20, 0x4E ; T0設定
-    db 0xD6, 0x00, 0x70, 0xD2, 0x00, 0x05, 0x0D ; T0最大値A
-    db 0xD6, 0x00, 0xB0, 0xD4, 0x00, 0x05, 0x0D ; T0最大値B
-    db 0xFF, 0xFF           ; 終端マーカー
+ 
+; =============================================================
+; mpsc_write_both（MPSC#1と#2のチャンネルAのみ設定）
+;   入力: AL = レジスタ番号, BL = 書き込み値
+; =============================================================
+mpsc_write_both:
+    mov dx, MPSC1_A_CTRL
+    out dx, al
+    xchg al, bl
+    out dx, al
+    xchg al, bl
+ 
+    mov dx, MPSC2_A_CTRL
+    out dx, al
+    xchg al, bl
+    out dx, al
+    xchg al, bl
+ 
+    ret
 
 ; =================================================================
 ; Data
 ; =================================================================
-msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR for DVE-554 v0.1 2026-04-18  **",0x0D,0x0A,0
+msg_boot: db 0x0D,0x0A,"**  V53 RAM MONITOR for DVE-554 v0.3 2026-05-02  **",0x0D,0x0A,0
 msg_load: db "Load HEX...",0
 msg_ok:   db "OK",0
 msg_go:   db "Go!",0
@@ -1667,46 +1847,45 @@ msg_space:      db "  ", 0
 msg_abort:      db "Aborted.", 0x0D, 0x0A, 0
 msg_tick:   db "Tick: ", 0
 
-; 割り込みハンドラメッセージ
-msg_intp0: db "** INTP0 **", 0
-msg_intp1: db "** INTP1 **", 0
-msg_intp2: db "** INTP2 **", 0
-msg_intp3: db "** INTP3 **", 0
-msg_intp4: db "** INTP4 **", 0
-msg_intp5: db "** INTP5 **", 0
-msg_intp6: db "** INTP6 **", 0
-msg_intp7: db "** INTP7 **", 0
-
-msg_int10h: db "** INT10h **", 0
-msg_int11h: db "** INT11h **", 0
-msg_int12h: db "** INT12h **", 0
-msg_int13h: db "** INT13h **", 0
-msg_int14h: db "** INT14h **", 0
-msg_int15h: db "** INT15h **", 0
-msg_int16h: db "** INT16h **", 0
-msg_int17h: db "** INT17h **", 0
+ALIGN 2
 
 ; 変数
-dump_seg:   dw  0x0000  ; Dump: セグメント保存用
-dump_off:   dw  0x0000  ; Dump: オフセット保存用
-load_seg:   dw  0x0000  ; Load: ターゲットセグメント
+rx_buffer: times RX_BUF_SIZE db 0
+head_ptr: dw 0
+tail_ptr: dw 0
+
+dump_seg: dw  0x0000  ; Dump: セグメント保存用
+dump_off: dw  0x0000  ; Dump: オフセット保存用
+load_seg: dw  0x0000  ; Load: ターゲットセグメント
 tick_counter_lo: dw 0x0000  ; Tick: 下位16bit
 tick_counter_hi: dw 0x0000  ; Tick: 上位16bit
 
-; 割り込みフラグ
-intp1_flag: dw 0
-intp2_flag: dw 0
-intp3_flag: dw 0
-intp4_flag: dw 0
-intp5_flag: dw 0
-intp6_flag: dw 0
-intp7_flag: dw 0
+intsys_flag: dw 0
 
-int10h_flag: dw 0
-int11h_flag: dw 0
-int12h_flag: dw 0
-int13h_flag: dw 0
-int14h_flag: dw 0
-int15h_flag: dw 0
-int16h_flag: dw 0
-int17h_flag: dw 0
+; 割り込みフラグ
+int0x20_flag: dw 0
+int0x21_flag: dw 0
+int0x22_flag: dw 0
+int0x23_flag: dw 0
+int0x24_flag: dw 0
+int0x25_flag: dw 0
+int0x26_flag: dw 0
+int0x27_flag: dw 0
+
+int0x28_flag: dw 0
+int0x29_flag: dw 0
+int0x2a_flag: dw 0
+int0x2b_flag: dw 0
+int0x2c_flag: dw 0
+int0x2d_flag: dw 0
+int0x2e_flag: dw 0
+int0x2f_flag: dw 0
+
+int0x30_flag: dw 0
+int0x31_flag: dw 0
+int0x32_flag: dw 0
+int0x33_flag: dw 0
+int0x34_flag: dw 0
+int0x35_flag: dw 0
+int0x36_flag: dw 0
+int0x37_flag: dw 0
